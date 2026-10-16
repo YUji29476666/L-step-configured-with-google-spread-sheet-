@@ -242,6 +242,20 @@ def process_csv(input_filepath, output_filepath=None):
         print(result_df.iloc[0].to_dict())
     print()
 
+    # DEBUG: DataFrame の列順序と値を詳しく確認
+    print("=" * 60)
+    print("DEBUG: DataFrame columns order（詳細）")
+    print("=" * 60)
+    for i, col in enumerate(result_df.columns):
+        print(f"  {i}: {repr(col)}")
+
+    if len(result_df) > 0:
+        print("\nDEBUG: DataFrame values (first row) - detailed")
+        first_row_values = result_df.iloc[0].tolist()
+        for i, val in enumerate(first_row_values):
+            print(f"  {i}: {repr(val)}")
+    print()
+
     # 5. 統計情報を表示
     status_counts = result_df['processing_status'].value_counts()
     print("=== 処理結果統計 ===")
@@ -364,6 +378,15 @@ def write_to_spreadsheet(spreadsheet_id, sheet_name, result_df, credentials_path
         # 2. 新しいデータを書き込む
         values = [result_df.columns.tolist()] + result_df.values.tolist()
         body = {'values': values}
+
+        # DEBUG: Google Sheets に書き込む values の構造を確認
+        print("=" * 60)
+        print("DEBUG: values to write to Sheets")
+        print("=" * 60)
+        print(f"Header row: {values[0]}")
+        if len(values) > 1:
+            print(f"First data row: {values[1]}")
+        print()
 
         result = service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
