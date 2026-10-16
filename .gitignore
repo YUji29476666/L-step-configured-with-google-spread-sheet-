@@ -1,5 +1,7 @@
 # Data files
-*.csv
+# Exclude only test/actual data; mapping CSVs are included
+tests/actual_data.csv
+tests/actual_data_normalized.csv
 !tests/sample_raw.csv
 
 # Google API credentials
