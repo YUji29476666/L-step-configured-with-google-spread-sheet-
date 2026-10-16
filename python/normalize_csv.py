@@ -26,31 +26,86 @@ def read_csv(filepath, encoding='shift_jis'):
     print(f"[ERROR] CSV 読み込みエラー: 対応するエンコーディングが見つかりません")
     sys.exit(1)
 
+def format_graduation_date(year, month):
+    """卒業年月を YYYY年M月 形式に統一"""
+    year = str(year).strip()
+    month = str(month).strip()
+
+    if not year or year == '':
+        return ''
+
+    if not month or month == '':
+        return f"{year}年"
+
+    return f"{year}年{month}月"
+
 def normalize_row(row, dicts):
-    """1行分のデータを正規化（学校名・専攻・副専攻 の 3 列のみ）"""
+    """1行分のデータを正規化"""
+    # DEBUG: 最初の行だけ列名と性別を確認（デバッグ用）
+    if row.name == 0:
+        print("=" * 60)
+        print("DEBUG: row の全列名と値（最初の行）")
+        print("=" * 60)
+        for col in row.index[:15]:
+            print(f"  {repr(col)}: {repr(row.get(col, 'NOT FOUND'))}")
+        print()
+
     # L-step の列名対応（複数の形式に対応）
     school_value_raw = get_value_from_row(row, [
-        '学校名',  # シンプル形式
-        '10. 現在、在学中/在学予定/在学希望の学校名（例：ハーバード大学）',  # L-step 形式
+        '学校名',
+        '10. 現在、在学中/在学予定/在学希望の学校名（例：ハーバード大学）',
     ])
 
     major_value_raw = get_value_from_row(row, [
-        '専攻',  # シンプル形式
-        '11. 現在、在学している学校での専攻（例：会計学）',  # L-step 形式
+        '専攻',
+        '11. 現在、在学している学校での専攻（例：会計学）',
     ])
 
     minor_major_value_raw = get_value_from_row(row, [
-        '副専攻',  # シンプル形式
-        '12. 現在、在学している学校での副専攻（例：言語学）',  # L-step 形式
+        '副専攻',
+        '12. 現在、在学している学校での副専攻（例：言語学）',
     ])
 
-    # 国は country_result には入れるが、出力には含めない（元の値を使用）
     country_value_raw = get_value_from_row(row, [
         '国',
         '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
     ])
 
+    # 性別、学位、卒業年月を取得
+    gender_raw = get_value_from_row(row, [
+        '性別',
+        '3. 性別',
+    ])
+
+    degree_raw = get_value_from_row(row, [
+        '学位',
+        '取得予定/済み学位',
+        '8. 現在の取得予定/取得済みの学位',
+    ])
+
+    graduation_year_raw = get_value_from_row(row, [
+        '卒業年度',
+        '13. 最終学歴となる大学・大学院の卒業予定年 / 既卒年',
+    ])
+
+    graduation_month_raw = get_value_from_row(row, [
+        '卒業月',
+        '14. 最終学歴となる大学・大学院の卒業予定月 / 既卒月',
+    ])
+
+    # 現在のステータスを取得
+    current_status_raw = get_value_from_row(row, [
+        '現在のステータス',
+        '7. 現在のステータス',
+    ])
+
+    graduation_date = format_graduation_date(graduation_year_raw, graduation_month_raw)
+
     result = {
+        'gender': gender_raw,
+        'degree': degree_raw,
+        'current_status': current_status_raw,
+        'graduation_date': graduation_date,
         'country_result': normalize_country(str(country_value_raw), dicts['country']),
         'school_result': None,
         'major_result': None,
@@ -74,10 +129,18 @@ def normalize_row(row, dicts):
     return result
 
 def get_value_from_row(row, column_names):
-    """複数の列名候補から値を取得"""
+    """複数の列名候補から値を取得（完全一致・部分一致対応）"""
+    # 完全一致を試す
     for col_name in column_names:
         if col_name in row.index and pd.notna(row[col_name]):
             return row[col_name]
+
+    # 部分一致を試す（キーワードを含む列を検索）
+    for col_name in column_names:
+        for idx_col in row.index:
+            if col_name in str(idx_col) and pd.notna(row[idx_col]):
+                return row[idx_col]
+
     return ''
 
 def determine_status(result):
@@ -113,12 +176,20 @@ def process_csv(input_filepath, output_filepath=None):
     df = read_csv(input_filepath)
     print(f"処理対象: {len(df)} 行\n")
 
+    # DEBUG: 実際の列名を表示
+    print("=" * 60)
+    print("DEBUG: 実際の列名（最初の10列）")
+    print("=" * 60)
+    for i, col in enumerate(df.columns[:10]):
+        print(f"  列{i}: {repr(col)}")
+    print()
+
     # 2. 辞書を読み込み
     print("正規化ルール（辞書）を読み込み中...")
     dicts = load_dictionaries()
     print(f"[OK] 辞書ロード完了\n")
 
-    # 3. 行ごとに正規化（学校名・専攻・副専攻 の 3 列のみ）
+    # 3. 行ごとに正規化
     print("正規化処理を実行中...")
     results = []
     errors = []
@@ -127,21 +198,31 @@ def process_csv(input_filepath, output_filepath=None):
         try:
             normalized = normalize_row(row, dicts)
 
-            # 元のデータをコピー
-            result_row = dict(row)
-
-            # 3 列だけを正規化
-            result_row['学校名'] = get_value(normalized['school_result'].get('value', row.get('学校名', '')))
-            result_row['専攻'] = get_value(normalized['major_result'].get('value', row.get('専攻', '')))
-            result_row['副専攻'] = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
-            result_row['processing_status'] = get_value(normalized['status'])
-
+            # 出力列のみを抽出
+            result_row = {
+                '現在のステータス': get_value(normalized['current_status']),
+                '性別': get_value(normalized['gender']),
+                '取得予定/済み学位': get_value(normalized['degree']),
+                '国': get_value(normalized['country_result'].get('value', '')),
+                '学校名': get_value(normalized['school_result'].get('value', '')),
+                '専攻': get_value(normalized['major_result'].get('value', '')),
+                '副専攻': get_value(normalized['minor_major_result'].get('value', '')),
+                '卒業年度': get_value(normalized['graduation_date']),
+                'processing_status': get_value(normalized['status'])
+            }
             results.append(result_row)
         except Exception as e:
             errors.append({'row': idx + 2, 'error': str(e)})
 
     # 4. 結果を DataFrame に
     result_df = pd.DataFrame(results)
+
+    # 出力列の順序を固定
+    output_columns = [
+        '現在のステータス', '性別', '取得予定/済み学位',
+        '国', '学校名', '専攻', '副専攻', '卒業年度', 'processing_status'
+    ]
+    result_df = result_df[output_columns]
 
     # nan を空文字列に置換
     result_df = result_df.fillna('')
