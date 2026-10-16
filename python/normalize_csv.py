@@ -168,21 +168,35 @@ def process_csv(input_filepath, output_filepath=None):
 
     return result_df
 
-def get_sheets_service(credentials_path):
+def get_sheets_service(credentials_path=None):
     """Google Sheets API のサービスを取得"""
     try:
-        credentials = Credentials.from_service_account_file(
-            credentials_path,
-            scopes=['https://www.googleapis.com/auth/spreadsheets']
-        )
+        # 環境変数から認証情報を読み込む（GitHub Actions用）
+        creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+
+        if creds_json:
+            # 環境変数から JSON をパース
+            creds_dict = json.loads(creds_json)
+            credentials = Credentials.from_service_account_info(
+                creds_dict,
+                scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+        else:
+            # ファイルから読み込む（ローカル開発用）
+            if not credentials_path:
+                credentials_path = 'service-account-key.json'
+
+            credentials = Credentials.from_service_account_file(
+                credentials_path,
+                scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+
         return build('sheets', 'v4', credentials=credentials)
     except FileNotFoundError:
         print(f"[ERROR] 認証ファイルが見つかりません: {credentials_path}")
-        print("  以下のステップを実行してください：")
-        print("  1. Google Cloud Console で Sheets API を有効化")
-        print("  2. サービスアカウントを作成")
-        print("  3. 秘密鍵を JSON でダウンロード")
-        print(f"  4. {credentials_path} に保存")
+        sys.exit(1)
+    except json.JSONDecodeError:
+        print("[ERROR] GOOGLE_CREDENTIALS が無効な JSON です")
         sys.exit(1)
 
 def read_from_spreadsheet(spreadsheet_id, sheet_name, credentials_path):
