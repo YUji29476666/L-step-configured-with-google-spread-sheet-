@@ -1,0 +1,409 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import argparse
+import pandas as pd
+import sys
+import json
+import os
+from google.oauth2.service_account import Credentials
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major
+
+def read_csv(filepath, encoding='shift_jis'):
+    """CSV ファイルを読み込む（複数エンコーディング対応）"""
+    encodings = [encoding, 'utf-8', 'cp932', 'iso-8859-1', 'utf-16']
+
+    for enc in encodings:
+        try:
+            df = pd.read_csv(filepath, encoding=enc)
+            print(f"[OK] CSV を読み込みました（エンコーディング: {enc}）")
+            return df
+        except (UnicodeDecodeError, LookupError):
+            continue
+
+    print(f"[ERROR] CSV 読み込みエラー: 対応するエンコーディングが見つかりません")
+    sys.exit(1)
+
+def normalize_row(row, dicts):
+    """1行分のデータを正規化（学校名・専攻・副専攻 の 3 列のみ）"""
+    # L-step の列名対応（複数の形式に対応）
+    school_value_raw = get_value_from_row(row, [
+        '学校名',  # シンプル形式
+        '10. 現在、在学中/在学予定/在学希望の学校名（例：ハーバード大学）',  # L-step 形式
+    ])
+
+    major_value_raw = get_value_from_row(row, [
+        '専攻',  # シンプル形式
+        '11. 現在、在学している学校での専攻（例：会計学）',  # L-step 形式
+    ])
+
+    minor_major_value_raw = get_value_from_row(row, [
+        '副専攻',  # シンプル形式
+        '12. 現在、在学している学校での副専攻（例：言語学）',  # L-step 形式
+    ])
+
+    # 国は country_result には入れるが、出力には含めない（元の値を使用）
+    country_value_raw = get_value_from_row(row, [
+        '国',
+        '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
+    ])
+
+    result = {
+        'country_result': normalize_country(str(country_value_raw), dicts['country']),
+        'school_result': None,
+        'major_result': None,
+        'minor_major_result': None,
+        'status': None
+    }
+
+    country_code = result['country_result'].get('value', '')
+
+    result['school_result'] = normalize_school(
+        str(school_value_raw),
+        dicts['school']['Other'],
+        country_code
+    )
+
+    result['major_result'] = normalize_major(str(major_value_raw), dicts['major'])
+    result['minor_major_result'] = normalize_major(str(minor_major_value_raw), dicts['major'])
+
+    result['status'] = determine_status(result)
+
+    return result
+
+def get_value_from_row(row, column_names):
+    """複数の列名候補から値を取得"""
+    for col_name in column_names:
+        if col_name in row.index and pd.notna(row[col_name]):
+            return row[col_name]
+    return ''
+
+def determine_status(result):
+    """processing_status を判定"""
+    statuses = []
+
+    if result['country_result'].get('status') in ['error', 'unmatched']:
+        statuses.append('要確認')
+    if result['school_result'].get('status') in ['error', 'unmatched']:
+        statuses.append('要確認')
+    if result['major_result'].get('status') == 'unmatched':
+        statuses.append('未定')
+
+    if '要確認' in statuses:
+        return '要確認'
+    if '未定' in statuses:
+        return '未定'
+    return '統一済み'
+
+def get_value(val):
+    """値を処理：nan を空文字列に変換"""
+    if pd.isna(val) or val == 'nan' or val is None:
+        return ''
+    return str(val)
+
+def process_csv(input_filepath, output_filepath=None):
+    """CSV を読み込み → 正規化 → 出力"""
+    print("=" * 60)
+    print("L-step データ正規化処理")
+    print("=" * 60)
+
+    # 1. CSV 読み込み
+    df = read_csv(input_filepath)
+    print(f"処理対象: {len(df)} 行\n")
+
+    # 2. 辞書を読み込み
+    print("正規化ルール（辞書）を読み込み中...")
+    dicts = load_dictionaries()
+    print(f"[OK] 辞書ロード完了\n")
+
+    # 3. 行ごとに正規化（学校名・専攻・副専攻 の 3 列のみ）
+    print("正規化処理を実行中...")
+    results = []
+    errors = []
+
+    for idx, row in df.iterrows():
+        try:
+            normalized = normalize_row(row, dicts)
+
+            # 元のデータをコピー
+            result_row = dict(row)
+
+            # 3 列だけを正規化
+            result_row['学校名'] = get_value(normalized['school_result'].get('value', row.get('学校名', '')))
+            result_row['専攻'] = get_value(normalized['major_result'].get('value', row.get('専攻', '')))
+            result_row['副専攻'] = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
+            result_row['processing_status'] = get_value(normalized['status'])
+
+            results.append(result_row)
+        except Exception as e:
+            errors.append({'row': idx + 2, 'error': str(e)})
+
+    # 4. 結果を DataFrame に
+    result_df = pd.DataFrame(results)
+
+    # nan を空文字列に置換
+    result_df = result_df.fillna('')
+
+    print(f"[OK] 正規化完了: {len(results)} 行\n")
+
+    # 5. 統計情報を表示
+    status_counts = result_df['processing_status'].value_counts()
+    print("=== 処理結果統計 ===")
+    for status, count in status_counts.items():
+        print(f"{status}: {count} 件")
+
+    if errors:
+        print(f"エラー: {len(errors)} 件")
+        for error in errors[:5]:  # 最初の5件だけ表示
+            print(f"  行 {error['row']}: {error['error']}")
+
+    print()
+
+    # 6. 出力ファイルに書き込み
+    if output_filepath:
+        result_df.to_csv(output_filepath, index=False, encoding='utf-8', na_rep='')
+        print(f"[OK] 出力ファイルに書き込みました: {output_filepath}")
+
+    return result_df
+
+def get_sheets_service(credentials_path):
+    """Google Sheets API のサービスを取得"""
+    try:
+        credentials = Credentials.from_service_account_file(
+            credentials_path,
+            scopes=['https://www.googleapis.com/auth/spreadsheets']
+        )
+        return build('sheets', 'v4', credentials=credentials)
+    except FileNotFoundError:
+        print(f"[ERROR] 認証ファイルが見つかりません: {credentials_path}")
+        print("  以下のステップを実行してください：")
+        print("  1. Google Cloud Console で Sheets API を有効化")
+        print("  2. サービスアカウントを作成")
+        print("  3. 秘密鍵を JSON でダウンロード")
+        print(f"  4. {credentials_path} に保存")
+        sys.exit(1)
+
+def read_from_spreadsheet(spreadsheet_id, sheet_name, credentials_path):
+    """Google Spreadsheet から「raw」シートを読み込む"""
+    try:
+        service = get_sheets_service(credentials_path)
+        result = service.spreadsheets().values().get(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A:Z"
+        ).execute()
+
+        values = result.get('values', [])
+        if not values:
+            print(f"[ERROR] シート「{sheet_name}」にデータがありません")
+            sys.exit(1)
+
+        # ヘッダーとデータを分離
+        headers = values[0]
+        data = values[1:]
+
+        # DataFrame に変換
+        df = pd.DataFrame(data, columns=headers)
+        print(f"[OK] Spreadsheet から {len(df)} 行を読み込みました")
+        return df
+
+    except Exception as e:
+        print(f"[ERROR] Spreadsheet 読み込みエラー: {e}")
+        sys.exit(1)
+
+def write_to_spreadsheet(spreadsheet_id, sheet_name, result_df, credentials_path):
+    """Google Spreadsheet の「cleaned」シートに書き込む"""
+    try:
+        service = get_sheets_service(credentials_path)
+
+        # DataFrame を値に変換
+        values = [result_df.columns.tolist()] + result_df.values.tolist()
+
+        # シートをクリアして新しいデータを書き込む
+        body = {'values': values}
+        # 列数に応じて range を動的に設定
+        num_cols = len(result_df.columns)
+        end_col = chr(64 + num_cols)  # A=65, B=66, ... Z=90
+        result = service.spreadsheets().values().update(
+            spreadsheetId=spreadsheet_id,
+            range=f"{sheet_name}!A:{end_col}",
+            valueInputOption='RAW',
+            body=body
+        ).execute()
+
+        print(f"[OK] Spreadsheet「{sheet_name}」シートに {len(result_df)} 行を書き込みました")
+        return result
+
+    except Exception as e:
+        print(f"[ERROR] Spreadsheet 書き込みエラー: {e}")
+        sys.exit(1)
+
+def main():
+    parser = argparse.ArgumentParser(description='LINE Step データを正規化')
+    parser.add_argument(
+        '--input',
+        help='入力 CSV ファイル（Shift_JIS または UTF-8）'
+    )
+    parser.add_argument(
+        '--output',
+        help='出力 CSV ファイル（指定なしの場合は出力しない）'
+    )
+    parser.add_argument(
+        '--spreadsheet-id',
+        help='Google Spreadsheet ID'
+    )
+    parser.add_argument(
+        '--raw-sheet',
+        default='raw',
+        help='入力シート名（デフォルト: raw）'
+    )
+    parser.add_argument(
+        '--cleaned-sheet',
+        default='cleaned',
+        help='出力シート名（デフォルト: cleaned）'
+    )
+    parser.add_argument(
+        '--credentials',
+        default='service-account-key.json',
+        help='Google Cloud サービスアカウント認証ファイル'
+    )
+
+    args = parser.parse_args()
+
+    # モード判定
+    if args.spreadsheet_id:
+        # モード: Google Sheets
+        print("=" * 60)
+        print("Google Sheets モード")
+        print("=" * 60)
+
+        # --input が指定されている場合はローカル CSV を使用、そうでなければ Google Sheets から読み込む
+        if args.input:
+            print("ローカル CSV を読み込んでいます...")
+            df = read_csv(args.input)
+        else:
+            df = read_from_spreadsheet(args.spreadsheet_id, args.raw_sheet, args.credentials)
+
+        print("\n正規化ルール（辞書）を読み込み中...")
+        dicts = load_dictionaries()
+        print(f"[OK] 辞書ロード完了\n")
+
+        print("正規化処理を実行中...")
+        results = []
+        unmatched_schools = {}  # 未正規化の学校名を記録
+        unmatched_majors = {}   # 未正規化の専攻を記録
+
+        for idx, row in df.iterrows():
+            try:
+                normalized = normalize_row(row, dicts)
+
+                # 未正規化のデータを記録（デバッグ用）
+                if normalized['school_result'].get('status') == 'unmatched':
+                    school_val = get_value_from_row(row, ['学校名', '10. 現在、在学中/在学予定/在学希望の学校名（例：ハーバード大学）'])
+                    if school_val:
+                        unmatched_schools[school_val] = unmatched_schools.get(school_val, 0) + 1
+
+                if normalized['major_result'].get('status') == 'unmatched':
+                    major_val = get_value_from_row(row, ['専攻', '11. 現在、在学している学校での専攻（例：会計学）'])
+                    if major_val:
+                        unmatched_majors[major_val] = unmatched_majors.get(major_val, 0) + 1
+                # 国を日本語で表示（元の入力値を使用）
+                country_original = get_value_from_row(row, [
+                    '国',
+                    '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
+                ])
+
+                # 「その他（国）」がある場合はそれを優先
+                country_other = get_value_from_row(row, [
+                    'その他(記述).3',
+                    'その他(記述).2',
+                ])
+                if country_other and country_other != '':
+                    country_original = country_other
+
+                # 学位を取得
+                gakui = get_value_from_row(row, [
+                    '学位',
+                    '8. 現在の取得予定/取得済みの学位',
+                ])
+
+                # 卒業年度を取得（年と月を組み合わせて「YYYY年M月」形式）
+                grad_year = get_value_from_row(row, [
+                    '卒業年度',
+                    '13. 最終学歴となる大学・大学院の卒業予定年 / 既卒年',
+                ])
+                grad_month = get_value_from_row(row, [
+                    '卒業月度',
+                    '14. 最終学歴となる大学・大学院の卒業予定月 / 既卒月',
+                ])
+                grad_date = ''
+                if grad_year and grad_year != '':
+                    if grad_month and grad_month != '':
+                        grad_date = f"{grad_year}年{grad_month}"
+                    else:
+                        grad_date = f"{grad_year}年"
+
+                # 専攻で「なし」を「未定」に統一
+                major_val = get_value(normalized['major_result'].get('value', row.get('専攻', '')))
+                if major_val in ['なし', '']:
+                    major_val = '未定'
+
+                # 副専攻は「なし」をそのまま保持
+                minor_val = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
+
+                results.append({
+                    '回答者ID': get_value(row.get('回答者ID', '')),
+                    '性別': get_value(row.get('性別', '')),
+                    '学位': gakui,
+                    '国': country_original,
+                    '学校名': get_value(normalized['school_result'].get('value', row.get('学校名', ''))),
+                    '専攻': major_val,
+                    '副専攻': minor_val,
+                    '卒業年度': grad_date,
+                    'processing_status': get_value(normalized['status'])
+                })
+            except Exception as e:
+                print(f"  行 {idx + 2} でエラー: {e}")
+
+        result_df = pd.DataFrame(results)
+        result_df = result_df.fillna('')
+        print(f"[OK] 正規化完了: {len(results)} 行\n")
+
+        # 統計情報を表示
+        status_counts = result_df['processing_status'].value_counts()
+        print("=== 処理結果統計 ===")
+        for status, count in status_counts.items():
+            print(f"{status}: {count} 件")
+
+        # 未正規化データの上位を表示
+        if unmatched_schools:
+            print("\n=== 未正規化の学校名（上位5件） ===")
+            for school, count in sorted(unmatched_schools.items(), key=lambda x: x[1], reverse=True)[:5]:
+                print(f"  {school}: {count} 件")
+
+        if unmatched_majors:
+            print("\n=== 未正規化の専攻（上位5件） ===")
+            for major, count in sorted(unmatched_majors.items(), key=lambda x: x[1], reverse=True)[:5]:
+                print(f"  {major}: {count} 件")
+
+        print()
+
+        # Google Sheets に書き込む
+        write_to_spreadsheet(args.spreadsheet_id, args.cleaned_sheet, result_df, args.credentials)
+
+    elif args.input:
+        # モード: ローカル CSV
+        print("=" * 60)
+        print("ローカル CSV モード")
+        print("=" * 60)
+
+        result_df = process_csv(args.input, args.output)
+
+    else:
+        print("[ERROR] --input または --spreadsheet-id を指定してください")
+        parser.print_help()
+        sys.exit(1)
+
+if __name__ == '__main__':
+    main()

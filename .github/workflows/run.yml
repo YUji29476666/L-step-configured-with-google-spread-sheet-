@@ -1,0 +1,32 @@
+name: L-step データ正規化（手動実行）
+
+on:
+  workflow_dispatch:
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Python をセットアップ
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: 依存ライブラリをインストール
+        run: |
+          pip install -r requirements.txt
+
+      - name: サンプル CSV を正規化テスト
+        run: |
+          python python/normalize_csv.py \
+            --input tests/sample_raw.csv \
+            --output output.csv
+
+      - name: 出力ファイルをアップロード
+        uses: actions/upload-artifact@v3
+        with:
+          name: normalized-csv
+          path: output.csv

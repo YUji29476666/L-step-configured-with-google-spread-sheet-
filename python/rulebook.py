@@ -1,0 +1,272 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+import unicodedata
+import re
+import pandas as pd
+import os
+
+def normalize_text(text):
+    """テキストを正規化（Unicode NFKC + 空白整理）"""
+    if not text or pd.isna(text):
+        return ''
+
+    text = str(text).strip()
+    text = unicodedata.normalize('NFKC', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    return text
+
+def load_dictionaries_from_csv():
+    """CSV ファイルから辞書を読み込む"""
+    base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    dicts = {
+        'country': {
+            '日本': 'JP',
+            'アメリカ': 'US',
+            'カナダ': 'CA',
+            'オーストラリア': 'AU',
+            'マレーシア': 'MY',
+            'シンガポール': 'SG',
+            'タイ': 'TH',
+            'インド': 'IN',
+            '中国': 'CN',
+            '韓国': 'KR',
+            'イギリス': 'GB',
+            'フランス': 'FR',
+            'ドイツ': 'DE',
+            'オランダ': 'NL',
+            'スイス': 'CH',
+            'ニュージーランド': 'NZ',
+            '南アフリカ': 'ZA',
+        },
+        'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
+        'major': {}
+    }
+
+    # 学校名の辞書を読み込み
+    school_csv = os.path.join(base_path, 'data', 'school_mapping.csv')
+    if os.path.exists(school_csv):
+        df = pd.read_csv(school_csv, encoding='utf-8')
+        for _, row in df.iterrows():
+            unified = normalize_text(row.get('統一後の値', ''))
+            variants_str = str(row.get('まとめられる元の値(すべて)', ''))
+
+            if unified and variants_str and not pd.isna(variants_str):
+                # 括弧内の数字を削除して表記揺れを抽出
+                # 例：「早稲田大学(19)、慶應大学」 → 「早稲田大学」「慶應大学」
+                variants = re.sub(r'\(\d+\)', '', variants_str)
+                for variant in variants.split('、'):
+                    variant = normalize_text(variant)
+                    if variant:
+                        # キー: 日本語の表記揺れ, 値: 統一後の英語名
+                        dicts['school']['Other'][variant] = unified
+
+    # 専攻の辞書を読み込み
+    major_csv = os.path.join(base_path, 'data', 'major_mapping.csv')
+    if os.path.exists(major_csv):
+        df = pd.read_csv(major_csv, encoding='utf-8')
+        for _, row in df.iterrows():
+            unified = normalize_text(row.get('統一後の値', ''))
+            variants_str = str(row.get('まとめられる元の値(すべて)', ''))
+
+            if unified and variants_str and not pd.isna(variants_str):
+                # 括弧内の数字を削除して表記揺れを抽出
+                variants = re.sub(r'\(\d+\)', '', variants_str)
+                variant_list = []
+                for variant in variants.split('、'):
+                    variant = normalize_text(variant)
+                    if variant:
+                        variant_list.append(variant)
+
+                if variant_list:
+                    dicts['major'][unified] = variant_list
+
+    # 副専攻の辞書を読み込み
+    minor_csv = os.path.join(base_path, 'data', 'minor_major_mapping.csv')
+    if os.path.exists(minor_csv):
+        df = pd.read_csv(minor_csv, encoding='utf-8')
+        for _, row in df.iterrows():
+            unified = normalize_text(row.get('統一後の値', ''))
+            variants_str = str(row.get('まとめられる元の値(すべて)', ''))
+
+            # 副専攻は major_dict と同じ構造を使用
+            if pd.isna(unified) or unified == '':
+                unified = ''  # 空欄を保持
+
+            if variants_str and not pd.isna(variants_str):
+                # 括弧内の数字を削除して表記揺れを抽出
+                variants = re.sub(r'\(\d+\)', '', variants_str)
+                variant_list = []
+                for variant in variants.split('、'):
+                    variant = normalize_text(variant)
+                    if variant:
+                        variant_list.append(variant)
+
+                if variant_list:
+                    if unified not in dicts['major']:
+                        dicts['major'][unified] = variant_list
+
+    return dicts
+
+def load_dictionaries():
+    """辞書を読み込む（CSV ベース）"""
+    return load_dictionaries_from_csv()
+
+def normalize_country(value, country_dict):
+    """国を正規化"""
+    value = normalize_text(value)
+
+    if not value or value == '':
+        return {'status': 'unmatched', 'value': value, 'error': '空欄'}
+
+    # 直接マッチ
+    if value in country_dict:
+        return {'status': 'matched', 'value': country_dict[value]}
+
+    # 複数の国が書かれている場合（カンマ区切り）
+    if '、' in value or ',' in value:
+        return {'status': 'matched', 'value': value}
+
+    # マッチなし — 日本語のまま返す（国名を出力値として使用）
+    return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
+
+def normalize_school(value, school_dict, country):
+    """学校名を英語正式名に正規化"""
+    value = normalize_text(value)
+
+    if not value or value == '':
+        return {'status': 'unmatched', 'value': value, 'error': '空欄'}
+
+    # 大学名ではないもの
+    if value in ['大学', '留学済み', '卒業後', 'なし']:
+        return {'status': 'matched', 'value': 'なし'}
+
+    if value in ['未定', '考え中']:
+        return {'status': 'matched', 'value': '未定'}
+
+    # 複数学校が書かれている場合
+    if '、' in value or '/' in value or '→' in value or '・' in value:
+        schools = re.split(r'[、/→・]', value)
+        schools = [s.strip() for s in schools if s.strip()]
+
+        unified_schools = []
+        all_matched = True
+
+        for school in schools:
+            school = normalize_text(school)
+
+            # 説明を削除
+            school = re.sub(r'[（(].*?[）)]', '', school).strip()
+            school = re.sub(r'(留学|交換|在学|編入|卒業|に|国内|現在|予定)', '', school).strip()
+
+            if school in school_dict:
+                unified_schools.append(school_dict[school])
+            elif school not in ['大学', '留学済み', 'なし']:
+                all_matched = False
+
+        if unified_schools:
+            return {
+                'status': 'matched' if all_matched else 'partial',
+                'value': ' / '.join(unified_schools)
+            }
+
+    # 単一学校
+    if value in school_dict:
+        return {'status': 'matched', 'value': school_dict[value]}
+
+    # マッチなし
+    return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
+
+def normalize_major(value, major_dict):
+    """専攻・副専攻を日本語に統一"""
+    value = normalize_text(value)
+
+    if not value or value == '':
+        return {'status': 'unmatched', 'value': '', 'error': '空欄'}
+
+    # 「なし」「未定」などの特殊値
+    if value in ['なし', '無し']:
+        return {'status': 'matched', 'value': ''}
+
+    if value in ['未定', 'わからない', '分からない', '考え中', '勉強']:
+        return {'status': 'matched', 'value': '未定'}
+
+    # 複数値が書かれている場合
+    if any(sep in value for sep in ['、', ',', '/', '・', 'and', '&']):
+        parts = re.split(r'[、,/・&]|and', value)
+        parts = [p.strip() for p in parts if p.strip()]
+
+        unified_majors = []
+        all_matched = True
+
+        for part in parts:
+            part = normalize_text(part)
+
+            # 「学部」「学科」「専攻」を削除
+            part = re.sub(r'(学部|学科|専攻|Major)', '', part).strip()
+
+            # 括弧内を削除
+            part = re.sub(r'[（(].*?[）)]', '', part).strip()
+
+            # 直接マッチ
+            if part in major_dict:
+                unified_majors.append(part)
+            else:
+                # 表記揺れマッチ
+                matched = False
+                for unified_name, variants in major_dict.items():
+                    if part in variants:
+                        unified_majors.append(unified_name)
+                        matched = True
+                        break
+
+                if not matched and part:
+                    all_matched = False
+
+        if unified_majors:
+            return {
+                'status': 'matched' if all_matched else 'partial',
+                'value': ' / '.join(unified_majors)
+            }
+
+    # 単一値
+    # 「学部」「学科」「専攻」を削除
+    clean_value = re.sub(r'(学部|学科|専攻|Major)', '', value).strip()
+
+    # 直接マッチ
+    if clean_value in major_dict:
+        return {'status': 'matched', 'value': clean_value}
+
+    # 表記揺れマッチ
+    for unified_name, variants in major_dict.items():
+        if clean_value in variants:
+            return {'status': 'matched', 'value': unified_name}
+
+    # マッチなし
+    return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
+
+def get_value_from_row(row, column_names):
+    """複数の列名候補から値を取得"""
+    for col_name in column_names:
+        if col_name in row.index and pd.notna(row[col_name]):
+            return row[col_name]
+    return ''
+
+def determine_status(result):
+    """processing_status を判定"""
+    statuses = []
+
+    if result['country_result'].get('status') in ['error', 'unmatched']:
+        statuses.append('要確認')
+    if result['school_result'].get('status') in ['error', 'unmatched']:
+        statuses.append('要確認')
+    if result['major_result'].get('status') == 'unmatched':
+        statuses.append('未定')
+
+    if '要確認' in statuses:
+        return '要確認'
+    if '未定' in statuses:
+        return '未定'
+    return '統一済み'

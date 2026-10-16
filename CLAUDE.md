@@ -1,0 +1,119 @@
+# lstep-data — プロジェクト背景・技術方針
+
+## プロジェクト背景
+
+LINE Step の「友達追加時アンケート」には、以下の問題がある：
+- 同じ学校・専攻が複数の表記で入力されている（「東京大学」「東大」「The University of Tokyo」など）
+- データ分析・統計処理の精度低下
+- ユーザー情報管理が煩雑
+
+**目的**：正規化パイプラインを構築し、自動的に表記揺れを統一する。
+
+## 現在の状態（2026年10月）
+
+✅ **Python版が完成・稼働中**
+- 492行のアンケートデータを処理
+- 統一済み：379件（77.0%）、要確認：97件、未定：16件
+- Google Sheets へのリアルタイム書き込み機能搭載
+
+❌ **未実装**
+- GitHub での公開（現在はローカルのみ）
+- GAS版（Google Apps Script）実装
+
+## 技術方針
+
+### Python版（現行）
+
+**採用理由**：
+- 柔軟な処理フロー（エンコーディング自動判定、複数入出力形式対応）
+- 対応表（CSV）で動的にルールを読み込み（GAS では難しい）
+- Google Sheets API を直接使用（ローカル CSV ↔ Google Sheets のシームレス連携）
+
+**構成**：
+- `normalize_csv.py`：メイン処理
+- `rulebook.py`：正規化ロジック（言語非依存設計）
+- CSV対応表：学校名（330個）、専攻（159個）、副専攻（69個）
+
+### GAS版（拡張予定）
+
+**採点理由**（実装時）：
+- Spreadsheet内で完結（Pythonなど環境不要）
+- ユーザー（非技術者）向けに UI を提供（「実行」ボタン）
+- 自動実行トリガー（定期実行）
+
+## 実装上の重要な判断
+
+1. **対応表の構成**
+   - CSV ベース（Excel で編集可能）
+   - 「統一後の値」と「表記揺れ」をカンマ区切りで記録
+   - 括弧内の数字（「東京大学(19)」）は自動的に削除
+
+2. **正規化の方針**
+   - 推測・fuzzy matching は行わない
+   - 対応表にない値は「要確認」として識別
+   - ユーザーが後から確認・修正できる構造
+
+3. **Google Sheets 連携**
+   - サービスアカウント認証で自動化
+   - 元のデータは削除せず、「cleaned」シートに出力
+   - 実行ログも記録
+
+4. **エンコーディング対応**
+   - ローカル CSV：Shift_JIS / UTF-8 自動判定
+   - Google Sheets：UTF-8 で統一
+
+## データの流れ
+
+```
+L-step CSV（Shift_JIS）
+   ↓
+Python normalize_csv.py（エンコーディング自動判定）
+   ↓
+rulebook.py（対応表 CSV から辞書読み込み）
+   ↓
+行ごと正規化
+   - 国：「その他（国）」優先
+   - 学校名：対応表で統一
+   - 専攻：「なし」→「未定」に統一
+   - 副専攻：「なし」はそのまま保持
+   - 卒業年度：YYYY年M月形式
+   - processing_status：判定
+   ↓
+Google Sheets「cleaned」シートに書き込み
+```
+
+## 今後の展開
+
+### 短期（完成予定）
+- ✅ Python版を GitHub に push
+- 🔄 GAS版を実装
+- CI/CD パイプライン（GitHub Actions）
+
+### 中期
+- Looker Studio で可視化ダッシュボード
+- 自動実行スケジューラ
+- Slack 通知（処理結果）
+
+### 長期
+- 独自の正規化辞書ライブラリとしてパッケージ化
+- 他のアンケートツール（Google Forms など）対応
+
+## チーム・責任
+
+- **実装者**：Claude Haiku 4.5 (AI Assistant)
+- **ユーザー**：takebe0326@gmail.com（データ正規化責任者）
+- **データソース**：LINE Step アンケートシステム
+
+## プロジェクト参照
+
+- **Google Sheets URL**：https://docs.google.com/spreadsheets/d/1XB9s0VI5k0t_SOnNCTBTIsBaWzbb1nnCEQl-wldGyPo/
+- **GitHub リポジトリ**：https://github.com/YUji29476666/lstep-data
+- **Spreadsheet ID**：`1XB9s0VI5k0t_SOnNCTBTIsBaWzbb1nnCEQl-wldGyPo`
+
+## ライセンス
+
+プライベートプロジェクト。本社内でのみ使用。
+
+---
+
+Last updated: 2026年10月15日
