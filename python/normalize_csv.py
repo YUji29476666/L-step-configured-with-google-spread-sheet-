@@ -519,7 +519,7 @@ def main():
                     '回答ID': get_value(row.get('回答ID', '')),
                     '回答日時': get_value(row.get('回答日時', '')),
                     '回答者ID': get_value(row.get('回答者ID', '')),
-                    '性別': get_value(row.get('性別', '')),
+                    '性別': get_value(normalized['gender']),
                     '学位': gakui,
                     '国': country_original,
                     '学校名': get_value(normalized['school_result'].get('value', row.get('学校名', ''))),
