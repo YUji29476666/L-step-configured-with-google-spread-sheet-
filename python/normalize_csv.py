@@ -71,10 +71,11 @@ def normalize_row(row, dicts):
         '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
     ])
 
-    # 性別、学位、卒業年月を取得
+    # 性別、学位、卒業年月を取得（複数のパターンに対応）
     gender_raw = get_value_from_row(row, [
         '性別',
         '3. 性別',
+        '3.',  # 「3. 性別」の「3.」で検索
     ])
 
     degree_raw = get_value_from_row(row, [
