@@ -320,22 +320,54 @@ def read_from_spreadsheet(spreadsheet_id, sheet_name, credentials_path):
         print(f"[ERROR] Spreadsheet 読み込みエラー: {e}")
         sys.exit(1)
 
+def get_sheet_id(service, spreadsheet_id, sheet_name):
+    """シート名からシートIDを取得"""
+    try:
+        spreadsheet = service.spreadsheets().get(
+            spreadsheetId=spreadsheet_id
+        ).execute()
+
+        for sheet in spreadsheet.get('sheets', []):
+            if sheet['properties']['title'] == sheet_name:
+                return sheet['properties']['sheetId']
+
+        print(f"[ERROR] シート「{sheet_name}」が見つかりません")
+        sys.exit(1)
+    except Exception as e:
+        print(f"[ERROR] シートID取得エラー: {e}")
+        sys.exit(1)
+
 def write_to_spreadsheet(spreadsheet_id, sheet_name, result_df, credentials_path):
     """Google Spreadsheet の「cleaned」シートに書き込む"""
     try:
         service = get_sheets_service(credentials_path)
 
-        # DataFrame を値に変換
-        values = [result_df.columns.tolist()] + result_df.values.tolist()
+        # シートIDを取得
+        sheet_id = get_sheet_id(service, spreadsheet_id, sheet_name)
 
-        # シートをクリアして新しいデータを書き込む
+        # 1. シートをクリア（古いデータを削除）
+        clear_request = {
+            'updateCells': {
+                'range': {
+                    'sheetId': sheet_id,
+                },
+                'fields': '*'
+            }
+        }
+        clear_body = {'requests': [clear_request]}
+        service.spreadsheets().batchUpdate(
+            spreadsheetId=spreadsheet_id,
+            body=clear_body
+        ).execute()
+        print("[OK] シートをクリアしました")
+
+        # 2. 新しいデータを書き込む
+        values = [result_df.columns.tolist()] + result_df.values.tolist()
         body = {'values': values}
-        # 列数に応じて range を動的に設定
-        num_cols = len(result_df.columns)
-        end_col = chr(64 + num_cols)  # A=65, B=66, ... Z=90
+
         result = service.spreadsheets().values().update(
             spreadsheetId=spreadsheet_id,
-            range=f"{sheet_name}!A:{end_col}",
+            range=f"{sheet_name}!A1",
             valueInputOption='RAW',
             body=body
         ).execute()
