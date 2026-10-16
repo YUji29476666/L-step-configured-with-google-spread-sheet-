@@ -516,8 +516,6 @@ def main():
                 minor_val = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
 
                 results.append({
-                    '回答ID': get_value(row.get('回答ID', '')),
-                    '回答日時': get_value(row.get('回答日時', '')),
                     '回答者ID': get_value(row.get('回答者ID', '')),
                     '性別': get_value(normalized['gender']),
                     '学位': gakui,
