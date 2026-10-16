@@ -1,0 +1,46 @@
+name: Normalize L-step Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      spreadsheet_id:
+        description: 'Google Spreadsheet ID'
+        required: true
+      raw_sheet:
+        description: 'Raw data sheet name'
+        required: true
+        default: 'raw'
+
+jobs:
+  normalize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Download raw data and normalize
+        env:
+          GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
+        run: |
+          mkdir -p output
+          python python/normalize_csv.py \
+            --spreadsheet-id "${{ github.event.inputs.spreadsheet_id }}" \
+            --raw-sheet "${{ github.event.inputs.raw_sheet }}" \
+            --cleaned-sheet "cleaned"
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: normalized_result
+          path: output/
+          retention-days: 7
