@@ -431,6 +431,11 @@ def main():
         default='service-account-key.json',
         help='Google Cloud サービスアカウント認証ファイル'
     )
+    parser.add_argument(
+        '--use-sheets-dict',
+        action='store_true',
+        help='Google Sheets から辞書を読み込む'
+    )
 
     args = parser.parse_args()
 
@@ -449,7 +454,11 @@ def main():
             df = read_from_spreadsheet(args.spreadsheet_id, args.raw_sheet, args.credentials)
 
         print("\n正規化ルール（辞書）を読み込み中...")
-        dicts = load_dictionaries()
+        dicts = load_dictionaries(
+            use_sheets=args.use_sheets_dict,
+            spreadsheet_id=args.spreadsheet_id if args.use_sheets_dict else None,
+            credentials_path=args.credentials
+        )
         print(f"[OK] 辞書ロード完了\n")
 
         print("正規化処理を実行中...")

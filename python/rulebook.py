@@ -5,6 +5,9 @@ import unicodedata
 import re
 import pandas as pd
 import os
+import json
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
 def normalize_text(text):
     """テキストを正規化（Unicode NFKC + 空白整理）"""
@@ -110,9 +113,97 @@ def load_dictionaries_from_csv():
 
     return dicts
 
-def load_dictionaries():
-    """辞書を読み込む（CSV ベース）"""
-    return load_dictionaries_from_csv()
+def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
+    """Google Sheets から辞書を読み込む"""
+    try:
+        # 認証
+        creds_json = os.environ.get('GOOGLE_CREDENTIALS')
+        if creds_json:
+            creds_dict = json.loads(creds_json)
+            credentials = Credentials.from_service_account_info(
+                creds_dict,
+                scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+        else:
+            if not credentials_path:
+                credentials_path = 'service-account-key.json'
+            credentials = Credentials.from_service_account_file(
+                credentials_path,
+                scopes=['https://www.googleapis.com/auth/spreadsheets']
+            )
+
+        service = build('sheets', 'v4', credentials=credentials)
+
+        dicts = {
+            'country': {
+                '日本': 'JP', 'アメリカ': 'US', 'カナダ': 'CA', 'オーストラリア': 'AU',
+                'マレーシア': 'MY', 'シンガポール': 'SG', 'タイ': 'TH', 'インド': 'IN',
+                '中国': 'CN', '韓国': 'KR', 'イギリス': 'GB', 'フランス': 'FR',
+                'ドイツ': 'DE', 'オランダ': 'NL', 'スイス': 'CH', 'ニュージーランド': 'NZ',
+                '南アフリカ': 'ZA', 'フランス': 'FR', '台湾': 'TW',
+            },
+            'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
+            'major': {}
+        }
+
+        # Google Sheets から学校名対応表を読み込む
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range='辞書_学校名!A2:B'
+            ).execute()
+            values = result.get('values', [])
+
+            for row in values:
+                if len(row) >= 2:
+                    variant = normalize_text(row[0])
+                    unified = normalize_text(row[1])
+                    if variant and unified:
+                        dicts['school']['Other'][variant] = unified
+
+            print(f"[OK] Google Sheets から {len(values)} 件の学校名対応表を読み込みました")
+        except Exception as e:
+            print(f"[WARN] 学校名対応表の読み込みエラー: {e}")
+
+        # Google Sheets から専攻対応表を読み込む
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range='辞書_専攻!A2:B'
+            ).execute()
+            values = result.get('values', [])
+
+            for row in values:
+                if len(row) >= 2:
+                    variant = normalize_text(row[0])
+                    unified = normalize_text(row[1])
+                    if variant and unified:
+                        if unified not in dicts['major']:
+                            dicts['major'][unified] = []
+                        dicts['major'][unified].append(variant)
+
+            print(f"[OK] Google Sheets から {len(values)} 件の専攻対応表を読み込みました")
+        except Exception as e:
+            print(f"[WARN] 専攻対応表の読み込みエラー: {e}")
+
+        return dicts
+
+    except Exception as e:
+        print(f"[ERROR] Google Sheets 読み込みエラー: {e}")
+        raise
+
+def load_dictionaries(use_sheets=False, spreadsheet_id=None, credentials_path=None):
+    """辞書を読み込む
+
+    Args:
+        use_sheets: True の場合 Google Sheets から、False の場合 CSV から読み込む
+        spreadsheet_id: Google Sheets を使う場合の Spreadsheet ID
+        credentials_path: Google Cloud 認証ファイルのパス
+    """
+    if use_sheets and spreadsheet_id:
+        return load_dictionaries_from_sheets(spreadsheet_id, credentials_path)
+    else:
+        return load_dictionaries_from_csv()
 
 def normalize_country(value, country_dict):
     """国を正規化"""
