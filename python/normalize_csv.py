@@ -78,6 +78,10 @@ def normalize_row(row, dicts):
         '3.',  # 「3. 性別」の「3.」で検索
     ])
 
+    # DEBUG: 最初の行だけ性別の抽出結果を表示
+    if row.name == 0:
+        print(f"DEBUG: gender_raw = {repr(gender_raw)}")
+
     degree_raw = get_value_from_row(row, [
         '学位',
         '取得予定/済み学位',
@@ -229,6 +233,14 @@ def process_csv(input_filepath, output_filepath=None):
     result_df = result_df.fillna('')
 
     print(f"[OK] 正規化完了: {len(results)} 行\n")
+
+    # DEBUG: 出力 DataFrame の列を確認
+    print("DEBUG: 出力列名:")
+    print(list(result_df.columns))
+    print(f"DEBUG: 最初の行のデータ:")
+    if len(result_df) > 0:
+        print(result_df.iloc[0].to_dict())
+    print()
 
     # 5. 統計情報を表示
     status_counts = result_df['processing_status'].value_counts()
