@@ -30,6 +30,31 @@ df = pd.read_csv(test_file, encoding='utf-8')
 school_tests = df[df['項目'] == '学校名'].reset_index(drop=True)
 print(f"学校名テストケース：{len(school_tests)} 件\n")
 
+# 国名→country_code 変換テーブル
+country_mapping = {
+    '日本': 'JP',
+    'アメリカ': 'US',
+    'カナダ': 'CA',
+    'オーストラリア': 'AU',
+    'マレーシア': 'MY',
+    'シンガポール': 'SG',
+    'タイ': 'TH',
+    'インド': 'IN',
+    '中国': 'CN',
+    '韓国': 'KR',
+    'イギリス': 'GB',
+    'フランス': 'FR',
+    'ドイツ': 'DE',
+    'オランダ': 'NL',
+    'スイス': 'CH',
+    'ニュージーランド': 'NZ',
+    '南アフリカ': 'ZA',
+    '台湾': 'TW',
+    'スウェーデン': 'SE',
+    'ノルウェー': 'NO',
+    'フィリピン': 'PH',
+}
+
 # テスト実行
 matches = 0
 mismatches = []
@@ -37,10 +62,13 @@ mismatches = []
 for idx, row in school_tests.iterrows():
     input_value = row['入力']
     expected = row['期待する出力']
-    country = row.get('国', None) if '国' in row.index else None
+    country_name = row.get('国(学校名のみ)', None) if '国(学校名のみ)' in row.index else None
+
+    # 国名を country_code に変換
+    country_code = country_mapping.get(country_name, None) if country_name else None
 
     # normalize_school を実行（国別対応）
-    result = normalize_school(input_value, school_dict, country=country)
+    result = normalize_school(input_value, school_dict, country=country_code)
     actual = result['value']
 
     # 一致判定
@@ -49,11 +77,12 @@ for idx, row in school_tests.iterrows():
     if is_match:
         matches += 1
         status = "✓"
-        print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s}")
+        country_str = f" ({country_code})" if country_code else ""
+        print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s}{country_str}")
     else:
-        mismatches.append((idx+1, input_value, actual, expected, country))
+        mismatches.append((idx+1, input_value, actual, expected, country_code))
         status = "✗"
-        country_str = f" ({country})" if country else ""
+        country_str = f" ({country_code})" if country_code else ""
         print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s} (期待: {expected}){country_str}")
 
 # 結果表示
