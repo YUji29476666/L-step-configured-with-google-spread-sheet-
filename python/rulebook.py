@@ -140,7 +140,8 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
                 'マレーシア': 'MY', 'シンガポール': 'SG', 'タイ': 'TH', 'インド': 'IN',
                 '中国': 'CN', '韓国': 'KR', 'イギリス': 'GB', 'フランス': 'FR',
                 'ドイツ': 'DE', 'オランダ': 'NL', 'スイス': 'CH', 'ニュージーランド': 'NZ',
-                '南アフリカ': 'ZA', 'フランス': 'FR', '台湾': 'TW',
+                '南アフリカ': 'ZA', '台湾': 'TW',
+                'スウェーデン': 'SE', 'ノルウェー': 'NO', 'フィリピン': 'PH',
             },
             'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
             'major': {}
@@ -215,6 +216,10 @@ def normalize_country(value, country_dict):
 
     if not value or value == '':
         return {'status': 'unmatched', 'value': value, 'error': '空欄'}
+
+    # 特殊値：「留学の予定なし」はそのまま返す
+    if value == '留学の予定なし':
+        return {'status': 'matched', 'value': '留学の予定なし'}
 
     # 直接マッチ
     if value in country_dict:
@@ -330,8 +335,10 @@ def normalize_major(value, major_dict):
         for part in parts:
             part = normalize_text(part)
 
-            # 「学部」「学科」「専攻」を削除
-            part = re.sub(r'(学部|学科|専攻|Major)', '', part).strip()
+            # 「学部」「学科」を削除
+            part = re.sub(r'(学部|学科)', '', part).strip()
+            # 末尾の「専攻」を削除
+            part = re.sub(r'専攻$', '', part).strip()
 
             # 括弧内を削除
             part = re.sub(r'[（(].*?[）)]', '', part).strip()
@@ -358,8 +365,10 @@ def normalize_major(value, major_dict):
             }
 
     # 単一値
-    # 「学部」「学科」「専攻」を削除
-    clean_value = re.sub(r'(学部|学科|専攻|Major)', '', value).strip()
+    # 「学部」「学科」を削除（例：商学部 → 商 → 辞書で「商学」に統一）
+    clean_value = re.sub(r'(学部|学科)', '', value).strip()
+    # 末尾の「専攻」を削除（例：電気工学専攻 → 電気工学）
+    clean_value = re.sub(r'専攻$', '', clean_value).strip()
 
     # 直接マッチ
     if clean_value in major_dict:
@@ -381,18 +390,26 @@ def get_value_from_row(row, column_names):
     return ''
 
 def determine_status(result):
-    """processing_status を判定"""
-    statuses = []
+    """processing_status を判定（項目別）"""
+    # 1 つでも要確認があれば「要確認」
+    confirm_items = [
+        result.get('country_result', {}).get('status'),
+        result.get('school_result', {}).get('status'),
+        result.get('major_result', {}).get('status'),
+        result.get('minor_major_result', {}).get('status'),
+    ]
 
-    if result['country_result'].get('status') in ['error', 'unmatched']:
-        statuses.append('要確認')
-    if result['school_result'].get('status') in ['error', 'unmatched']:
-        statuses.append('要確認')
-    if result['major_result'].get('status') == 'unmatched':
-        statuses.append('未定')
-
-    if '要確認' in statuses:
+    if 'unmatched' in confirm_items or 'error' in confirm_items:
         return '要確認'
-    if '未定' in statuses:
+
+    # 1 つでも「未定」の値があれば「未定」
+    undefined_items = [
+        result.get('major_result', {}).get('value'),
+        result.get('minor_major_result', {}).get('value'),
+    ]
+
+    if '未定' in undefined_items:
         return '未定'
+
+    # それ以外は統一済み
     return '統一済み'

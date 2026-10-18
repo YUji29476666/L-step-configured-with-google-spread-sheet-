@@ -71,6 +71,13 @@ def normalize_row(row, dicts):
         '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
     ])
 
+    # 「その他」の場合、「その他（記述）」の値を取得
+    country_other_raw = get_value_from_row(row, [
+        'その他（国）',
+        '9. その他（国）',
+        '5. その他（国）',
+    ])
+
     # 性別、学位、卒業年月を取得（複数のパターンに対応）
     gender_raw = get_value_from_row(row, [
         '性別',
@@ -106,12 +113,17 @@ def normalize_row(row, dicts):
 
     graduation_date = format_graduation_date(graduation_year_raw, graduation_month_raw)
 
+    # 国の処理：「その他」の場合は「その他（記述）」を優先
+    country_to_normalize = country_value_raw
+    if str(country_value_raw).strip() == 'その他' and country_other_raw:
+        country_to_normalize = country_other_raw
+
     result = {
         'gender': gender_raw,
         'degree': degree_raw,
         'current_status': current_status_raw,
         'graduation_date': graduation_date,
-        'country_result': normalize_country(str(country_value_raw), dicts['country']),
+        'country_result': normalize_country(str(country_to_normalize), dicts['country']),
         'school_result': None,
         'major_result': None,
         'minor_major_result': None,
@@ -213,6 +225,11 @@ def process_csv(input_filepath, output_filepath=None):
                 '専攻': get_value(normalized['major_result'].get('value', '')),
                 '副専攻': get_value(normalized['minor_major_result'].get('value', '')),
                 '卒業年度': get_value(normalized['graduation_date']),
+                # 項目別のステータス
+                '国_status': get_value(normalized['country_result'].get('status', '')),
+                '学校名_status': get_value(normalized['school_result'].get('status', '')),
+                '専攻_status': get_value(normalized['major_result'].get('status', '')),
+                '副専攻_status': get_value(normalized['minor_major_result'].get('status', '')),
                 'processing_status': get_value(normalized['status'])
             }
             results.append(result_row)
@@ -225,7 +242,8 @@ def process_csv(input_filepath, output_filepath=None):
     # 出力列の順序を固定
     output_columns = [
         '現在のステータス', '性別', '取得予定/済み学位',
-        '国', '学校名', '専攻', '副専攻', '卒業年度', 'processing_status'
+        '国', '国_status', '学校名', '学校名_status', '専攻', '専攻_status',
+        '副専攻', '副専攻_status', '卒業年度', 'processing_status'
     ]
     result_df = result_df[output_columns]
 
