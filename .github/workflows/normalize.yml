@@ -35,7 +35,8 @@ jobs:
           python python/normalize_csv.py \
             --spreadsheet-id "${{ github.event.inputs.spreadsheet_id }}" \
             --raw-sheet "${{ github.event.inputs.raw_sheet }}" \
-            --cleaned-sheet "cleaned"
+            --cleaned-sheet "cleaned" \
+            --use-sheets-dict
 
       - name: Upload artifact
         if: always()

@@ -34,13 +34,19 @@ LINE Step の「友達追加時アンケート」には、以下の問題があ�
 
 **採用理由**：
 - 柔軟な処理フロー（エンコーディング自動判定、複数入出力形式対応）
-- 対応表（CSV）で動的にルールを読み込み（GAS では難しい）
-- Google Sheets API を直接使用（ローカル CSV ↔ Google Sheets のシームレス連携）
+- 対応表を Google Sheets で一元管理（動的に更新可能）
+- Google Sheets API を直接使用
 
 **構成**：
 - `normalize_csv.py`：メイン処理
 - `rulebook.py`：正規化ロジック（言語非依存設計）
-- CSV対応表：学校名（330個）、専攻（159個）、副専攻（69個）
+- **辞書の正本は Google Sheets** - 3シートで管理
+  - 「辞書_学校名」：学校名対応表
+  - 「辞書_専攻」：専攻対応表
+  - 「辞書_副専攻」：副専攻対応表
+- **CSV データについて**：
+  - `data/` 配下の CSV は移行元として保持
+  - 直接編集しない（Google Sheets に反映してから読み込み）
 
 ### GAS版（拡張予定）
 
@@ -90,12 +96,28 @@ rulebook.py（対応表 CSV から辞書読み込み）
 Google Sheets「cleaned」シートに書き込み
 ```
 
+## 既知の課題・今後の改善
+
+### **未対応：国別対応の学校名**
+
+以下の学校は国によって異なる統一名を持つが、rulebook.py が「国」を使用していないため未対応：
+- **モナッシュ大学**：マレーシアなら「Monash University Malaysia」、オーストラリアなら「Monash University」
+- **テンプル大学**：日本なら「Temple University, Japan Campus」、アメリカなら「Temple University」
+- **アジアパシフィック大学**：日本の回答でも「Asia Pacific University」に変換される（正式英語名が必要）
+
+**対応方法**：
+- rulebook.py で `normalize_school()` が country パラメータを活用するよう修正
+- Google Sheets「辞書_学校名」の「国コード」列を利用した照合ロジック実装
+
+---
+
 ## 今後の展開
 
 ### 短期（完成予定）
 - ✅ Python版を GitHub に push
+- ✅ Google Sheets を辞書の正本に
 - 🔄 GAS版を実装
-- CI/CD パイプライン（GitHub Actions）
+- 🔄 国別対応の学校名に対応
 
 ### 中期
 - Looker Studio で可視化ダッシュボード

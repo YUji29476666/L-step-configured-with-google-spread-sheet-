@@ -1,0 +1,101 @@
+回答ID,回答日時,回答者ID,国,学校名,専攻,副専攻,processing_status
+1,2026-10-15 09:05,USER001,GB,早稲田大学 / 明治大学,金融学,金融学,要確認
+2,2026-10-15 09:10,USER002,US,Harvard University,工学,金融学,統一済み
+3,2026-10-15 09:15,USER003,MY,Monash University Malaysia,金融学,データサイエンス,統一済み
+4,2026-10-15 09:20,USER004,JP,Kyoto University,経済学,データサイエンス,統一済み
+5,2026-10-15 09:25,USER005,CA,東大,未定,心理学,要確認
+6,2026-10-15 09:30,USER006,CA,Yale,工学,心理学,要確認
+7,2026-10-15 09:35,USER007,US,Harvard University,未定,データサイエンス,統一済み
+8,2026-10-15 09:40,USER008,MY,Monash University Malaysia,マーケティング,未定,要確認
+9,2026-10-15 09:45,USER009,US,Community College,コンピュータサイエンス,心理学,要確認
+10,2026-10-15 09:50,USER010,AU,University of Newcastle,コンピュータサイエンス,金融学,統一済み
+11,2026-10-15 09:55,USER011,CA,BYU,金融学,データサイエンス,要確認
+12,2026-10-15 10:00,USER012,GB,東大,Engineering,データサイエンス,要確認
+13,2026-10-15 10:05,USER013,GB,Yale,工学,nan,要確認
+14,2026-10-15 10:10,USER014,GB,慶應義塾大学,金融学,nan,要確認
+15,2026-10-15 10:15,USER015,JP,Tokyo University,金融学,心理学,統一済み
+16,2026-10-15 10:20,USER016,MY,Monash University Malaysia,コンピュータサイエンス,未定,統一済み
+17,2026-10-15 10:25,USER017,AU,University of Melbourne,Engineering,未定,要確認
+18,2026-10-15 10:30,USER018,MY,Monash University Malaysia,未定,金融学,要確認
+19,2026-10-15 10:35,USER019,AU,University of Melbourne,コンピュータサイエンス,金融学,統一済み
+20,2026-10-15 10:40,USER020,JP,Ritsumeikan University,Engineering,データサイエンス,未定
+21,2026-10-15 10:45,USER021,AU,University of Melbourne,未定,未定,要確認
+22,2026-10-15 10:50,USER022,JP,"Temple University, Japan Campus",金融学,心理学,統一済み
+23,2026-10-15 10:55,USER023,CA,京都大学,未定,金融学,要確認
+24,2026-10-15 11:00,USER024,MY,Monash University Malaysia,工学,金融学,要確認
+25,2026-10-15 11:05,USER025,CA,Yale,金融学,心理学,要確認
+26,2026-10-15 11:10,USER026,GB,未定 / Harvard University,未定,データサイエンス,要確認
+27,2026-10-15 11:15,USER027,US,"University of California, Los Angeles",Engineering,心理学,未定
+28,2026-10-15 11:20,USER028,JP,Tokyo University,Engineering,金融学,未定
+29,2026-10-15 11:25,USER029,MY,Monash University Malaysia,金融学,nan,統一済み
+30,2026-10-15 11:30,USER030,GB,東京大学,工学,心理学,要確認
+31,2026-10-15 11:35,USER031,US,Brigham Young University,未定,nan,統一済み
+32,2026-10-15 11:40,USER032,JP,Waseda University,経営学,データサイエンス,統一済み
+33,2026-10-15 11:45,USER033,MY,Monash University Malaysia,コンピュータサイエンス,データサイエンス,要確認
+34,2026-10-15 11:50,USER034,CA,慶應義塾大学,マーケティング,nan,要確認
+35,2026-10-15 11:55,USER035,MY,Monash University Malaysia,マーケティング,心理学,統一済み
+36,2026-10-15 12:00,USER036,GB,ハーバード大学,経済学,データサイエンス,要確認
+37,2026-10-15 12:05,USER037,US,"University of California, Los Angeles",未定,未定,統一済み
+38,2026-10-15 12:10,USER038,AU,University of Newcastle,未定,nan,統一済み
+39,2026-10-15 12:15,USER039,US,Community College,マーケティング,金融学,要確認
+40,2026-10-15 12:20,USER040,GB,未定,マーケティング,データサイエンス,統一済み
+41,2026-10-15 12:25,USER041,CA,テンプル大学 / Yale,経営学,未定,要確認
+42,2026-10-15 12:30,USER042,JP,"Tokyo University / Temple University, Japan Campus",経営学,データサイエンス,統一済み
+43,2026-10-15 12:35,USER043,CA,Community College,工学,金融学,統一済み
+44,2026-10-15 12:40,USER044,JP,Kwansei Gakuin University,コンピュータサイエンス,心理学,統一済み
+45,2026-10-15 12:45,USER045,CA,未定,マーケティング,心理学,統一済み
+46,2026-10-15 12:50,USER046,CA,テンプル大学,コンピュータサイエンス,未定,要確認
+47,2026-10-15 12:55,USER047,US,"University of California, Berkeley",工学,データサイエンス,統一済み
+48,2026-10-15 13:00,USER048,AU,University of Melbourne,マーケティング,金融学,統一済み
+49,2026-10-15 13:05,USER049,GB,UCLA,マーケティング,金融学,要確認
+50,2026-10-15 13:10,USER050,AU,University of Newcastle,マーケティング,金融学,統一済み
+51,2026-10-15 13:15,USER051,AU,University of Melbourne,金融学,nan,統一済み
+52,2026-10-15 13:20,USER052,AU,University of Newcastle,マーケティング,心理学,統一済み
+53,2026-10-15 13:25,USER053,GB,テンプル大学,経営学,金融学,要確認
+54,2026-10-15 13:30,USER054,JP,"Temple University, Japan Campus",経済学,nan,統一済み
+55,2026-10-15 13:35,USER055,MY,Monash University Malaysia,工学,心理学,統一済み
+56,2026-10-15 13:40,USER056,AU,University of Melbourne,金融学,nan,要確認
+57,2026-10-15 13:45,USER057,AU,University of Melbourne,経営学,金融学,要確認
+58,2026-10-15 13:50,USER058,US,Community College,経営学,心理学,要確認
+59,2026-10-15 13:55,USER059,AU,University of Melbourne,工学,データサイエンス,統一済み
+60,2026-10-15 14:00,USER060,GB,京都大学,Engineering,データサイエンス,要確認
+61,2026-10-15 14:05,USER061,AU,University of Newcastle,未定,nan,統一済み
+62,2026-10-15 14:10,USER062,AU,University of Melbourne,経済学,データサイエンス,要確認
+63,2026-10-15 14:15,USER063,US,"University of California, Los Angeles",マーケティング,金融学,統一済み
+64,2026-10-15 14:20,USER064,MY,Monash University Malaysia,マーケティング,心理学,統一済み
+65,2026-10-15 14:25,USER065,CA,テンプル大学,工学,金融学,要確認
+66,2026-10-15 14:30,USER066,AU,University of Melbourne,未定,金融学,統一済み
+67,2026-10-15 14:35,USER067,US,Harvard University / Yale University,コンピュータサイエンス,nan,統一済み
+68,2026-10-15 14:40,USER068,AU,University of Newcastle,経営学,未定,統一済み
+69,2026-10-15 14:45,USER069,JP,Tokyo University / Tokyo University,未定,データサイエンス,統一済み
+70,2026-10-15 14:50,USER070,CA,Yale,経済学,nan,要確認
+71,2026-10-15 14:55,USER071,US,"University of California, Los Angeles",Engineering,金融学,未定
+72,2026-10-15 15:00,USER072,GB,UC Berkeley,経営学,nan,要確認
+73,2026-10-15 15:05,USER073,CA,同志社大学,未定,心理学,要確認
+74,2026-10-15 15:10,USER074,AU,University of Melbourne,金融学,金融学,統一済み
+75,2026-10-15 15:15,USER075,GB,BYU大学,コンピュータサイエンス,心理学,要確認
+76,2026-10-15 15:20,USER076,US,Harvard University,金融学,未定,統一済み
+77,2026-10-15 15:25,USER077,CA,Harvard University,未定,心理学,要確認
+78,2026-10-15 15:30,USER078,US,Community College,コンピュータサイエンス,未定,要確認
+79,2026-10-15 15:35,USER079,AU,University of Melbourne,経済学,データサイエンス,要確認
+80,2026-10-15 15:40,USER080,AU,University of Melbourne / 明治大学,経営学,データサイエンス,要確認
+81,2026-10-15 15:45,USER081,US,Temple University,未定,データサイエンス,統一済み
+82,2026-10-15 15:50,USER082,GB,立命館大学 / 未定,経済学,金融学,要確認
+83,2026-10-15 15:55,USER083,MY,Monash University Malaysia,マーケティング,nan,統一済み
+84,2026-10-15 16:00,USER084,MY,Monash University Malaysia,コンピュータサイエンス,nan,統一済み
+85,2026-10-15 16:05,USER085,JP,Doshisha University,マーケティング,未定,統一済み
+86,2026-10-15 16:10,USER086,GB,UCLA / 立命館大学,工学,未定,要確認
+87,2026-10-15 16:15,USER087,US,Harvard University,経済学,金融学,統一済み
+88,2026-10-15 16:20,USER088,CA,未定 / 早稲田大学,コンピュータサイエンス,金融学,要確認
+89,2026-10-15 16:25,USER089,CA,BYU大学,経済学,心理学,要確認
+90,2026-10-15 16:30,USER090,AU,University of Newcastle,工学,未定,統一済み
+91,2026-10-15 16:35,USER091,GB,明治大学,マーケティング,データサイエンス,要確認
+92,2026-10-15 16:40,USER092,JP,Kwansei Gakuin University,コンピュータサイエンス,心理学,統一済み
+93,2026-10-15 16:45,USER093,CA,京都大学 / 東大,工学,データサイエンス,要確認
+94,2026-10-15 16:50,USER094,MY,Monash University Malaysia,コンピュータサイエンス,金融学,統一済み
+95,2026-10-15 16:55,USER095,AU,University of Newcastle,マーケティング,データサイエンス,統一済み
+96,2026-10-15 17:00,USER096,MY,Monash University Malaysia,未定,金融学,統一済み
+97,2026-10-15 17:05,USER097,MY,Monash University Malaysia,金融学,心理学,統一済み
+98,2026-10-15 17:10,USER098,US,Community College,経済学,nan,要確認
+99,2026-10-15 17:15,USER099,CA,Yale / 関西学院大学,コンピュータサイエンス,未定,要確認
+100,2026-10-15 17:20,USER100,MY,Monash University Malaysia,金融学,データサイエンス,統一済み

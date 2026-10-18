@@ -69,8 +69,8 @@ def expand_variants(unified_value, variants_str):
     # 括弧内の数字を削除（例："早稲田大学(19)" → "早稲田大学"）
     variants_str = re.sub(r'\(\d+\)', '', variants_str)
 
-    # カンマ、句点、スラッシュで分割
-    variants = re.split(r'[、，,。・/]', variants_str)
+    # 「、」だけで分割（他の区切り文字では誤った分割が発生するため）
+    variants = re.split(r'[、]', variants_str)
 
     rows = []
     for variant in variants:

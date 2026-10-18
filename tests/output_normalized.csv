@@ -1,0 +1,11 @@
+回答ID,回答日時,回答者ID,国,学校名,専攻,副専攻,processing_status
+1,2026-10-15 09:00,USER001,日本,The University of Tokyo,経済学,未定,統一済み
+2,2026-10-15 09:05,USER002,アメリカ,Harvard University,経営学,データサイエンス,統一済み
+3,2026-10-15 09:10,USER003,日本,The University of Tokyo,工学,,統一済み
+4,2026-10-15 09:15,USER004,アメリカ,"University of California, Los Angeles",マーケティング,,統一済み
+5,2026-10-15 09:20,USER005,日本,Waseda University / Keio University,経済学,金融学,統一済み
+6,2026-10-15 09:25,USER006,オーストラリア,University of Melbourne,コンピュータサイエンス,,統一済み
+7,2026-10-15 09:30,USER007,アメリカ,Brigham Young University,経営学,Psychology,統一済み
+8,2026-10-15 09:35,USER008,日本,未定,未定,,統一済み
+9,2026-10-15 09:40,USER009,マレーシア,Monash University Malaysia,経済学,,統一済み
+10,2026-10-15 09:45,USER010,日本,架空工科大学,工学,,要確認
