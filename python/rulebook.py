@@ -146,11 +146,11 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
             'major': {}
         }
 
-        # Google Sheets から学校名対応表を読み込む
+        # Google Sheets から学校名対応表を読み込む（国コード対応）
         try:
             result = service.spreadsheets().values().get(
                 spreadsheetId=spreadsheet_id,
-                range='辞書_学校名!A2:B'
+                range='辞書_学校名!A2:C'
             ).execute()
             values = result.get('values', [])
 
@@ -158,8 +158,12 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
                 if len(row) >= 2:
                     variant = normalize_text(row[0])
                     unified = normalize_text(row[1])
+                    country_code = normalize_text(row[2]) if len(row) >= 3 else ''
+
                     if variant and unified:
-                        dicts['school']['Other'][variant] = unified
+                        # キー: (元の値, 国コード) → 値: 統一後の名前
+                        key = (variant, country_code)
+                        dicts['school']['Other'][key] = unified
 
             print(f"[OK] Google Sheets から {len(values)} 件の学校名対応表を読み込みました")
         except Exception as e:
@@ -223,8 +227,8 @@ def normalize_country(value, country_dict):
     # マッチなし — 日本語のまま返す（国名を出力値として使用）
     return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
 
-def normalize_school(value, school_dict, country):
-    """学校名を英語正式名に正規化"""
+def normalize_school(value, school_dict, country=None):
+    """学校名を英語正式名に正規化（国別対応）"""
     value = normalize_text(value)
 
     if not value or value == '':
@@ -252,9 +256,23 @@ def normalize_school(value, school_dict, country):
             school = re.sub(r'[（(].*?[）)]', '', school).strip()
             school = re.sub(r'(留学|交換|在学|編入|卒業|に|国内|現在|予定)', '', school).strip()
 
-            if school in school_dict:
-                unified_schools.append(school_dict[school])
-            elif school not in ['大学', '留学済み', 'なし']:
+            matched = False
+
+            # Step 1: (学校名, country_code) で検索 ← 国別ルール優先
+            if country:
+                key_with_country = (school, country)
+                if key_with_country in school_dict:
+                    unified_schools.append(school_dict[key_with_country])
+                    matched = True
+
+            # Step 2: (学校名, '') で検索 ← 共通ルール
+            if not matched:
+                key_without_country = (school, '')
+                if key_without_country in school_dict:
+                    unified_schools.append(school_dict[key_without_country])
+                    matched = True
+
+            if not matched and school not in ['大学', '留学済み', 'なし']:
                 all_matched = False
 
         if unified_schools:
@@ -263,9 +281,26 @@ def normalize_school(value, school_dict, country):
                 'value': ' / '.join(unified_schools)
             }
 
-    # 単一学校
-    if value in school_dict:
-        return {'status': 'matched', 'value': school_dict[value]}
+    # 単一学校の場合
+    matched = False
+    unified_value = None
+
+    # Step 1: (学校名, country_code) で検索 ← 国別ルール優先
+    if country:
+        key_with_country = (value, country)
+        if key_with_country in school_dict:
+            unified_value = school_dict[key_with_country]
+            matched = True
+
+    # Step 2: (学校名, '') で検索 ← 共通ルール
+    if not matched:
+        key_without_country = (value, '')
+        if key_without_country in school_dict:
+            unified_value = school_dict[key_without_country]
+            matched = True
+
+    if matched:
+        return {'status': 'matched', 'value': unified_value}
 
     # マッチなし
     return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}

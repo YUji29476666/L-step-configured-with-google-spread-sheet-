@@ -4,6 +4,13 @@
 import pandas as pd
 import sys
 import os
+
+# UTF-8 出力を強制
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'python'))
 
 from rulebook import load_dictionaries_from_sheets, normalize_school
@@ -30,9 +37,10 @@ mismatches = []
 for idx, row in school_tests.iterrows():
     input_value = row['入力']
     expected = row['期待する出力']
+    country = row.get('国', None) if '国' in row.index else None
 
-    # normalize_school を実行
-    result = normalize_school(input_value, school_dict, country=None)
+    # normalize_school を実行（国別対応）
+    result = normalize_school(input_value, school_dict, country=country)
     actual = result['value']
 
     # 一致判定
@@ -43,9 +51,10 @@ for idx, row in school_tests.iterrows():
         status = "✓"
         print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s}")
     else:
-        mismatches.append((idx+1, input_value, actual, expected))
+        mismatches.append((idx+1, input_value, actual, expected, country))
         status = "✗"
-        print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s} (期待: {expected})")
+        country_str = f" ({country})" if country else ""
+        print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s} (期待: {expected}){country_str}")
 
 # 結果表示
 print(f"\n{'='*100}")
@@ -55,5 +64,11 @@ print(f"{'='*100}")
 
 if mismatches:
     print("\n❌ 不一致の詳細：")
-    for idx, input_val, actual, expected in mismatches:
-        print(f"  [{idx:2d}] {input_val:30s} → {actual:40s} (期待: {expected})")
+    for mismatch_data in mismatches:
+        idx = mismatch_data[0]
+        input_val = mismatch_data[1]
+        actual = mismatch_data[2]
+        expected = mismatch_data[3]
+        country = mismatch_data[4] if len(mismatch_data) > 4 else None
+        country_str = f" ({country})" if country else ""
+        print(f"  [{idx:2d}] {input_val:30s} → {actual:40s} (期待: {expected}){country_str}")
