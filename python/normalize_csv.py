@@ -551,6 +551,10 @@ def main():
                     '専攻': major_val,
                     '副専攻': minor_val,
                     '卒業年度': grad_date,
+                    '国_status': get_value(normalized['country_result'].get('status', '')),
+                    '学校名_status': get_value(normalized['school_result'].get('status', '')),
+                    '専攻_status': get_value(normalized['major_result'].get('status', '')),
+                    '副専攻_status': get_value(normalized['minor_major_result'].get('status', '')),
                     'processing_status': get_value(normalized['status'])
                 })
             except Exception as e:
