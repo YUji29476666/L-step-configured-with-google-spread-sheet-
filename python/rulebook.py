@@ -225,6 +225,28 @@ def normalize_country(value, country_dict):
     if value in country_dict:
         return {'status': 'matched', 'value': country_dict[value]}
 
+    # 複合フォーマット：「その他 + 国名」形式から国名を抽出
+    # 例：「その他 + チェコ共和国」→ 「チェコ」と抽出して辞書で検索
+    if value.startswith('その他'):
+        # 「その他」を削除して残りの部分を抽出
+        remaining = re.sub(r'^その他[\s+]*', '', value).strip()
+
+        if remaining:
+            # 残りの文字列が「XX共和国」「XX王国」など長い形式の場合、短い形式を抽出
+            # 例：「チェコ共和国」→ 「チェコ」
+            short_name = re.sub(r'(共和国|王国|合衆国|連邦)$', '', remaining)
+
+            # 短い名前で辞書検索
+            if short_name in country_dict:
+                return {'status': 'matched', 'value': country_dict[short_name]}
+
+            # 元の名前で辞書検索
+            if remaining in country_dict:
+                return {'status': 'matched', 'value': country_dict[remaining]}
+
+            # どちらもマッチしないなら、抽出した名前をそのまま返す
+            return {'status': 'unmatched', 'value': short_name, 'error': '辞書にない値'}
+
     # 複数の国が書かれている場合（カンマ区切り）
     if '、' in value or ',' in value:
         return {'status': 'matched', 'value': value}
@@ -319,7 +341,8 @@ def normalize_major(value, major_dict):
 
     # 「なし」「未定」などの特殊値
     if value in ['なし', '無し']:
-        return {'status': 'matched', 'value': ''}
+        import pandas as pd
+        return {'status': 'matched', 'value': pd.NA}
 
     if value in ['未定', 'わからない', '分からない', '考え中', '勉強']:
         return {'status': 'matched', 'value': '未定'}
