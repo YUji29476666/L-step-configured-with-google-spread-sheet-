@@ -335,8 +335,16 @@ def normalize_major(value, major_dict):
         for part in parts:
             part = normalize_text(part)
 
-            # 「学部」「学科」を削除
-            part = re.sub(r'(学部|学科)', '', part).strip()
+            # 学部と学科が両方含まれている場合は自動変換しない（要確認のままにする）
+            if '学部' in part and '学科' in part:
+                all_matched = False
+                if part:
+                    unified_majors.append(part)
+                continue
+
+            # 「学部」「学科」を「学」に置き換え（例：商学部 → 商学）
+            part = re.sub(r'学部$', '学', part).strip()
+            part = re.sub(r'学科$', '学', part).strip()
             # 末尾の「専攻」を削除
             part = re.sub(r'専攻$', '', part).strip()
 
@@ -365,8 +373,13 @@ def normalize_major(value, major_dict):
             }
 
     # 単一値
-    # 「学部」「学科」を削除（例：商学部 → 商 → 辞書で「商学」に統一）
-    clean_value = re.sub(r'(学部|学科)', '', value).strip()
+    # 学部と学科が両方含まれている場合は自動変換しない
+    if '学部' in value and '学科' in value:
+        return {'status': 'unmatched', 'value': value, 'error': '学部と学科の複合形'}
+
+    # 「学部」「学科」を「学」に置き換え（例：商学部 → 商学 → 辞書で「商学」に統一）
+    clean_value = re.sub(r'学部$', '学', value).strip()
+    clean_value = re.sub(r'学科$', '学', clean_value).strip()
     # 末尾の「専攻」を削除（例：電気工学専攻 → 電気工学）
     clean_value = re.sub(r'専攻$', '', clean_value).strip()
 
