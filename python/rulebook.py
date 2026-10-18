@@ -261,6 +261,19 @@ def normalize_school(value, school_dict, country=None):
     if not value or value == '':
         return {'status': 'unmatched', 'value': value, 'error': '空欄'}
 
+    # ルール2：正式名がそのまま入力された場合を matched に
+    # 辞書の統一後の値と完全一致する場合、そのまま返す
+    for key, unified in school_dict.items():
+        if isinstance(key, tuple):
+            # (variant, country) タプルの場合
+            variant, key_country = key
+            if unified == value:
+                return {'status': 'matched', 'value': value}
+        else:
+            # 古い形式の場合（互換性のため）
+            if unified == value:
+                return {'status': 'matched', 'value': value}
+
     # 大学名ではないもの
     if value in ['大学', '留学済み', '卒業後', 'なし']:
         return {'status': 'matched', 'value': 'なし'}
@@ -346,6 +359,11 @@ def normalize_major(value, major_dict):
 
     if value in ['未定', 'わからない', '分からない', '考え中', '勉強']:
         return {'status': 'matched', 'value': '未定'}
+
+    # ルール2：正式名がそのまま入力された場合を matched に
+    # 辞書の統一後の値と完全一致する場合、そのまま返す
+    if value in major_dict:
+        return {'status': 'matched', 'value': value}
 
     # 複数値が書かれている場合
     if any(sep in value for sep in ['、', ',', '/', '・', 'and', '&']):

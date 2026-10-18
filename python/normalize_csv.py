@@ -539,8 +539,15 @@ def main():
                 if major_val in ['なし', '']:
                     major_val = '未定'
 
-                # 副専攻は「なし」をそのまま保持
+                # ルール5：副専攻の空欄を「なし」に分類
+                minor_input = get_value_from_row(row, ['副専攻', '12. 現在、在学している学校での副専攻（例：言語学）'])
                 minor_val = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
+                minor_status = get_value(normalized['minor_major_result'].get('status', ''))
+
+                # 元の値が空欄の場合、ステータスを「なし」に変更
+                if not minor_input or minor_input.strip() == '':
+                    minor_val = ''
+                    minor_status = 'なし'
 
                 results.append({
                     '回答者ID': get_value(row.get('回答者ID', '')),
@@ -554,7 +561,7 @@ def main():
                     '国_status': get_value(normalized['country_result'].get('status', '')),
                     '学校名_status': get_value(normalized['school_result'].get('status', '')),
                     '専攻_status': get_value(normalized['major_result'].get('status', '')),
-                    '副専攻_status': get_value(normalized['minor_major_result'].get('status', '')),
+                    '副専攻_status': minor_status,
                     'processing_status': get_value(normalized['status'])
                 })
             except Exception as e:
