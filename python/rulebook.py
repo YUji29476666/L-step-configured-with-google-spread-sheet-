@@ -142,6 +142,11 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
                 'ドイツ': 'DE', 'オランダ': 'NL', 'スイス': 'CH', 'ニュージーランド': 'NZ',
                 '南アフリカ': 'ZA', '台湾': 'TW',
                 'スウェーデン': 'SE', 'ノルウェー': 'NO', 'フィリピン': 'PH',
+                'アイルランド': 'IE', 'ハンガリー': 'HU', 'ポーランド': 'PL', 'スペイン': 'ES',
+                'イタリア': 'IT', 'オーストリア': 'AT', 'ベルギー': 'BE', 'マラウイ': 'MW',
+                'デンマーク': 'DK', 'トルコ': 'TR', 'マルタ': 'MT', 'フィンランド': 'FI',
+                'セルビア': 'RS', 'リトアニア': 'LT', 'カタール': 'QA', 'ベトナム': 'VN',
+                'チェコ': 'CZ', 'メキシコ': 'MX',
             },
             'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
             'major': {}
@@ -211,48 +216,113 @@ def load_dictionaries(use_sheets=False, spreadsheet_id=None, credentials_path=No
         return load_dictionaries_from_csv()
 
 def normalize_country(value, country_dict):
-    """国を正規化"""
+    """国を正規化（国名と国コード両方を返す）
+
+    Returns:
+        {
+            'status': 'matched' or 'unmatched',
+            'country_name': '日本語国名',  # cleaned 出力用
+            'country_code': 'JP',          # 国別学校ルール照合用（内部使用）
+            'value': 'JP'                  # 互換性維持（country_code と同じ）
+        }
+    """
     value = normalize_text(value)
 
     if not value or value == '':
-        return {'status': 'unmatched', 'value': value, 'error': '空欄'}
+        return {
+            'status': 'unmatched',
+            'country_name': '',
+            'country_code': '',
+            'value': '',
+            'error': '空欄'
+        }
 
     # 特殊値：「留学の予定なし」はそのまま返す
     if value == '留学の予定なし':
-        return {'status': 'matched', 'value': '留学の予定なし'}
+        return {
+            'status': 'matched',
+            'country_name': '留学の予定なし',
+            'country_code': '',
+            'value': ''
+        }
 
     # 直接マッチ
     if value in country_dict:
-        return {'status': 'matched', 'value': country_dict[value]}
+        country_code = country_dict[value]
+        return {
+            'status': 'matched',
+            'country_name': value,
+            'country_code': country_code,
+            'value': country_code
+        }
 
     # 複合フォーマット：「その他 + 国名」形式から国名を抽出
     # 例：「その他 + チェコ共和国」→ 「チェコ」と抽出して辞書で検索
+    # 複数の国が書かれている場合（「その他 + 国名、国名」など）も処理
     if value.startswith('その他'):
         # 「その他」を削除して残りの部分を抽出
         remaining = re.sub(r'^その他[\s+]*', '', value).strip()
 
         if remaining:
+            # 複数国判定（複数国はそのまま返す）
+            if '、' in remaining or ',' in remaining:
+                return {
+                    'status': 'matched',
+                    'country_name': remaining,
+                    'country_code': '',
+                    'value': remaining
+                }
+
             # 残りの文字列が「XX共和国」「XX王国」など長い形式の場合、短い形式を抽出
             # 例：「チェコ共和国」→ 「チェコ」
             short_name = re.sub(r'(共和国|王国|合衆国|連邦)$', '', remaining)
 
             # 短い名前で辞書検索
             if short_name in country_dict:
-                return {'status': 'matched', 'value': country_dict[short_name]}
+                country_code = country_dict[short_name]
+                return {
+                    'status': 'matched',
+                    'country_name': short_name,
+                    'country_code': country_code,
+                    'value': country_code
+                }
 
             # 元の名前で辞書検索
             if remaining in country_dict:
-                return {'status': 'matched', 'value': country_dict[remaining]}
+                country_code = country_dict[remaining]
+                return {
+                    'status': 'matched',
+                    'country_name': remaining,
+                    'country_code': country_code,
+                    'value': country_code
+                }
 
             # どちらもマッチしないなら、抽出した名前をそのまま返す
-            return {'status': 'unmatched', 'value': short_name, 'error': '辞書にない値'}
+            return {
+                'status': 'unmatched',
+                'country_name': short_name,
+                'country_code': '',
+                'value': short_name,
+                'error': '辞書にない値'
+            }
 
-    # 複数の国が書かれている場合（カンマ区切り）
+    # 複数の国が書かれている場合（カンマ区切り）— 早期判定
     if '、' in value or ',' in value:
-        return {'status': 'matched', 'value': value}
+        return {
+            'status': 'matched',
+            'country_name': value,
+            'country_code': '',
+            'value': value
+        }
 
     # マッチなし — 日本語のまま返す（国名を出力値として使用）
-    return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
+    return {
+        'status': 'unmatched',
+        'country_name': value,
+        'country_code': '',
+        'value': value,
+        'error': '辞書にない値'
+    }
 
 def normalize_school(value, school_dict, country=None):
     """学校名を英語正式名に正規化（国別対応）"""
@@ -283,6 +353,26 @@ def normalize_school(value, school_dict, country=None):
 
     # 複数学校が書かれている場合
     if '、' in value or '/' in value or '→' in value or '・' in value:
+        # ルール3：分割前に値全体で辞書を照合（「ウェリントン・ビクトリア大学」など「・」を含む名前を先に検索）
+        cleaned_value = normalize_text(value)
+        cleaned_value = re.sub(r'[（(].*?[）)]', '', cleaned_value).strip()
+        cleaned_value = re.sub(r'(留学|交換|在学|編入|卒業|に|国内|現在|予定)', '', cleaned_value).strip()
+
+        # Step 1: 全体で (学校名, country_code) で検索
+        if country:
+            key_with_country = (cleaned_value, country)
+            if key_with_country in school_dict:
+                return {'status': 'matched', 'value': school_dict[key_with_country]}
+
+        # Step 2: 全体で (学校名, '') で検索
+        key_without_country = (cleaned_value, '')
+        if key_without_country in school_dict:
+            return {'status': 'matched', 'value': school_dict[key_without_country]}
+
+        # 分割されていない場合は、ここまでで処理完了（単一学校扱い）
+        # 分割が必要な場合は続行
+
+        # 分割して個別に処理
         schools = re.split(r'[、/→・]', value)
         schools = [s.strip() for s in schools if s.strip()]
 
@@ -297,23 +387,29 @@ def normalize_school(value, school_dict, country=None):
             school = re.sub(r'(留学|交換|在学|編入|卒業|に|国内|現在|予定)', '', school).strip()
 
             matched = False
+            matched_value = None
 
             # Step 1: (学校名, country_code) で検索 ← 国別ルール優先
             if country:
                 key_with_country = (school, country)
                 if key_with_country in school_dict:
-                    unified_schools.append(school_dict[key_with_country])
+                    matched_value = school_dict[key_with_country]
                     matched = True
 
             # Step 2: (学校名, '') で検索 ← 共通ルール
             if not matched:
                 key_without_country = (school, '')
                 if key_without_country in school_dict:
-                    unified_schools.append(school_dict[key_without_country])
+                    matched_value = school_dict[key_without_country]
                     matched = True
 
-            if not matched and school not in ['大学', '留学済み', 'なし']:
-                all_matched = False
+            # ルール3修正：マッチしない部分も元のまま保持
+            if matched:
+                unified_schools.append(matched_value)
+            else:
+                unified_schools.append(school)
+                if school not in ['大学', '留学済み', 'なし']:
+                    all_matched = False
 
         if unified_schools:
             return {

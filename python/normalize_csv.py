@@ -130,7 +130,12 @@ def normalize_row(row, dicts):
         'status': None
     }
 
-    country_code = result['country_result'].get('value', '')
+    # 国コード（学校ルール照合用）と国名（出力用）を取得
+    country_code = result['country_result'].get('country_code', '')
+    country_name = result['country_result'].get('country_name', '')
+
+    # 国結果の出力値を country_name に修正（cleaned に出力するのは国名）
+    result['country_result']['value'] = country_name
 
     result['school_result'] = normalize_school(
         str(school_value_raw),
