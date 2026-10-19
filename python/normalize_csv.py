@@ -113,10 +113,13 @@ def normalize_row(row, dicts):
 
     graduation_date = format_graduation_date(graduation_year_raw, graduation_month_raw)
 
-    # 国の処理：「その他」の場合は「その他（記述）」を優先
-    country_to_normalize = country_value_raw
-    if str(country_value_raw).strip() == 'その他' and country_other_raw:
-        country_to_normalize = country_other_raw
+    # 国の処理：「その他」の場合は「その他（記述）」の値を出力
+    # country_value_raw が「その他」なら、country_other_raw（raw の「その他(記述)」）を使用
+    # country_other_raw が empty の場合は、normalize_country で unmatched になる
+    if str(country_value_raw).strip() == 'その他':
+        country_to_normalize = str(country_other_raw).strip() if country_other_raw else ''
+    else:
+        country_to_normalize = country_value_raw
 
     result = {
         'gender': gender_raw,
