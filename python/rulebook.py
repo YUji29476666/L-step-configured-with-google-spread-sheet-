@@ -11,10 +11,15 @@ from googleapiclient.discovery import build
 
 def normalize_text(text):
     """テキストを正規化（Unicode NFKC + 空白整理）"""
-    if not text or pd.isna(text):
+    if text is None:
         return ''
 
+    # 「NA」は文字列として保持（欠損値として扱わない）
     text = str(text).strip()
+
+    if text == '':
+        return ''
+
     text = unicodedata.normalize('NFKC', text)
     text = re.sub(r'\s+', ' ', text).strip()
 
@@ -344,12 +349,26 @@ def normalize_school(value, school_dict, country=None):
             if unified == value:
                 return {'status': 'matched', 'value': value}
 
-    # 大学名ではないもの
-    if value in ['大学', '留学済み', '卒業後', 'なし']:
-        return {'status': 'matched', 'value': 'なし'}
+    # 大学名ではないもの（5分類）
+    # 「予定なし」
+    if value in ['留学の予定なし', '希望なし', 'なしなし', '-', 'なし']:
+        return {'status': 'matched', 'value': '予定なし'}
 
-    if value in ['未定', '考え中']:
+    # 「未定」
+    if value in ['未定', 'まだ決めていない', 'Undecided', 'わからない', '考え中']:
         return {'status': 'matched', 'value': '未定'}
+
+    # 「社会人」
+    if value in ['社会人', 'フリーター', '自営業']:
+        return {'status': 'matched', 'value': '社会人'}
+
+    # 「既卒」
+    if value in ['卒業済み', '既卒', '既卒(日本の大学)', '卒業後']:
+        return {'status': 'matched', 'value': '既卒'}
+
+    # 「NA」
+    if value in ['在学してません', '在学なし', 'coop留学', '語学学校', '現在オペア留学中', 'NA', 'Na', '大学', '留学済み']:
+        return {'status': 'matched', 'value': 'NA'}
 
     # 複数学校が書かれている場合
     if '、' in value or '/' in value or '→' in value or '・' in value:

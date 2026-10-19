@@ -186,10 +186,20 @@ def determine_status(result):
     return '統一済み'
 
 def get_value(val):
-    """値を処理：nan を空文字列に変換"""
-    if pd.isna(val) or val == 'nan' or val is None:
+    """値を処理：nan を空文字列に変換（「NA」は保持）"""
+    if val is None or (pd.isna(val) and str(val) != 'nan'):
         return ''
-    return str(val)
+
+    val_str = str(val).strip()
+
+    # 「NA」と「Na」は文字列として保持
+    if val_str in ['NA', 'Na']:
+        return val_str
+
+    if val_str == 'nan' or val_str == '':
+        return ''
+
+    return val_str
 
 def process_csv(input_filepath, output_filepath=None):
     """CSV を読み込み → 正規化 → 出力"""
@@ -551,6 +561,10 @@ def main():
                 minor_input = get_value_from_row(row, ['副専攻', '12. 現在、在学している学校での副専攻（例：言語学）'])
                 minor_val = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
                 minor_status = get_value(normalized['minor_major_result'].get('status', ''))
+
+                # 副専攻で「なし」の場合は空欄に統一
+                if minor_val in ['なし', '']:
+                    minor_val = ''
 
                 # 元の値が空欄の場合、ステータスを「なし」に変更
                 if not minor_input or minor_input.strip() == '':
