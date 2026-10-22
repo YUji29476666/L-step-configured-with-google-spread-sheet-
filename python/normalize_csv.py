@@ -71,12 +71,8 @@ def normalize_row(row, dicts):
         '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
     ])
 
-    # 「その他」の場合、「その他（記述）」の値を取得
-    country_other_raw = get_value_from_row(row, [
-        'その他（国）',
-        '9. その他（国）',
-        '5. その他（国）',
-    ])
+    # 「その他」の場合、「その他（記述）」の値を取得（raw の R列=インデックス17）
+    country_other_raw = row.iloc[17] if len(row) > 17 else ''
 
     # 性別、学位、卒業年月を取得（複数のパターンに対応）
     gender_raw = get_value_from_row(row, [
@@ -156,14 +152,28 @@ def get_value_from_row(row, column_names):
     """複数の列名候補から値を取得（完全一致・部分一致対応）"""
     # 完全一致を試す
     for col_name in column_names:
-        if col_name in row.index and pd.notna(row[col_name]):
-            return row[col_name]
+        if col_name in row.index:
+            val = row[col_name]
+            # Series の場合は最初の非欠損値を取得
+            if isinstance(val, pd.Series):
+                non_null = val[val.notna()]
+                if len(non_null) > 0:
+                    return non_null.iloc[0]
+            elif pd.notna(val) and str(val).strip():
+                return val
 
     # 部分一致を試す（キーワードを含む列を検索）
     for col_name in column_names:
         for idx_col in row.index:
-            if col_name in str(idx_col) and pd.notna(row[idx_col]):
-                return row[idx_col]
+            if col_name in str(idx_col):
+                val = row[idx_col]
+                # Series の場合は最初の非欠損値を取得
+                if isinstance(val, pd.Series):
+                    non_null = val[val.notna()]
+                    if len(non_null) > 0:
+                        return non_null.iloc[0]
+                elif pd.notna(val) and str(val).strip():
+                    return val
 
     return ''
 
@@ -521,11 +531,8 @@ def main():
                     '9. 現在、在学中/在学予定/在学希望の国（例：アメリカ）',
                 ])
 
-                # 「その他（国）」がある場合はそれを優先
-                country_other = get_value_from_row(row, [
-                    'その他(記述).3',
-                    'その他(記述).2',
-                ])
+                # 「その他（国）」がある場合はそれを優先（raw の R列=インデックス17）
+                country_other = row.iloc[17] if len(row) > 17 else ''
                 if country_other and country_other != '':
                     country_original = country_other
 
