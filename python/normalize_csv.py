@@ -9,7 +9,7 @@ import os
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major
+from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name
 
 def read_csv(filepath, encoding='shift_jis'):
     """CSV ファイルを読み込む（複数エンコーディング対応）"""
@@ -132,8 +132,16 @@ def normalize_row(row, dicts):
     # 国コード（学校ルール照合用）を取得
     country_code = result['country_result'].get('country_code', '')
 
-    # cleaned に出力する値は「そのまま」（正規化前の元の値）
-    result['country_result']['value'] = country_to_normalize
+    # 国名を英語に変換（country_code があれば pycountry で変換）
+    if country_code:
+        english_country_name = country_code_to_name(country_code)
+        if english_country_name:
+            result['country_result']['value'] = english_country_name
+        else:
+            result['country_result']['value'] = country_to_normalize
+    else:
+        # country_code がない場合は元の値を保持（複数国や特殊ケースなど）
+        result['country_result']['value'] = country_to_normalize
 
     result['school_result'] = normalize_school(
         str(school_value_raw),
@@ -535,6 +543,13 @@ def main():
                 country_other = row.iloc[17] if len(row) > 17 else ''
                 if country_other and country_other != '':
                     country_original = country_other
+
+                # 国名を英語に変換（country_code があれば pycountry で変換）
+                country_code = normalized['country_result'].get('country_code', '')
+                if country_code:
+                    english_country_name = country_code_to_name(country_code)
+                    if english_country_name:
+                        country_original = english_country_name
 
                 # 学位を取得
                 gakui = get_value_from_row(row, [

@@ -6,6 +6,7 @@ import re
 import pandas as pd
 import os
 import json
+import pycountry
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -582,3 +583,39 @@ def determine_status(result):
 
     # それ以外は統一済み
     return '統一済み'
+
+def country_code_to_name(country_code, input_value=''):
+    """
+    country_code または input_value から国名（英語）を取得
+
+    Args:
+        country_code: ISO 3166-1 alpha-2 コード (JP, US など)
+        input_value: フォールバック用（日本語または英語の国名）
+
+    Returns:
+        英語の国名（例：Japan, United States）、見つからない場合は空文字列
+    """
+    if not country_code and not input_value:
+        return ''
+
+    if country_code:
+        try:
+            country = pycountry.countries.get(alpha_2=country_code)
+            if country:
+                return country.name
+        except Exception:
+            pass
+
+    if input_value:
+        input_str = str(input_value).strip()
+        if not input_str:
+            return ''
+
+        try:
+            country = pycountry.countries.search.name(input_str)
+            if country:
+                return country.name
+        except Exception:
+            pass
+
+    return ''
