@@ -155,7 +155,8 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
                 'チェコ': 'CZ', 'メキシコ': 'MX',
             },
             'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
-            'major': {}
+            'major': {},
+            'status': {}
         }
 
         # Google Sheets から学校名対応表を読み込む（国コード対応）
@@ -202,6 +203,28 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
         except Exception as e:
             print(f"[WARN] 専攻対応表の読み込みエラー: {e}")
 
+        # Google Sheets からステータス対応表を読み込む
+        try:
+            result = service.spreadsheets().values().get(
+                spreadsheetId=spreadsheet_id,
+                range='辞書_ステータス!A2:C'
+            ).execute()
+            values = result.get('values', [])
+
+            for row in values:
+                if len(row) >= 3:
+                    match_type = normalize_text(row[0])      # 「選択肢」or「その他(記述)」
+                    input_value = normalize_text(row[1])      # 入力値
+                    unified_status = normalize_text(row[2])   # 統一後のステータス
+
+                    if match_type and input_value and unified_status:
+                        status_dict_key = (match_type, input_value)
+                        dicts['status'][status_dict_key] = unified_status
+
+            print(f"[OK] Google Sheets から {len(values)} 件のステータス対応表を読み込みました")
+        except Exception as e:
+            print(f"[WARN] ステータス対応表の読み込みエラー: {e}")
+
         return dicts
 
     except Exception as e:
@@ -220,6 +243,61 @@ def load_dictionaries(use_sheets=False, spreadsheet_id=None, credentials_path=No
         return load_dictionaries_from_sheets(spreadsheet_id, credentials_path)
     else:
         return load_dictionaries_from_csv()
+
+def normalize_status(status_value, other_description, status_dict):
+    """現在のステータスを正規化
+
+    Args:
+        status_value (str): 「7. 現在のステータス」の値（選択肢）
+        other_description (str): 「その他(記述)」の値
+        status_dict (dict): 辞書（キー：(match_type, input_value), 値：統一後のステータス）
+
+    Returns:
+        {
+            'status': 'matched' | 'unmatched',
+            'value': '統一後のステータス値' | 'その他' | 'NA' | '',
+            'error': (オプション) エラーメッセージ
+        }
+    """
+    status_value = normalize_text(status_value)
+    other_description = normalize_text(other_description)
+
+    # a) status_value が「その他」以外 → 選択肢をそのまま返す
+    if status_value and status_value != 'その他':
+        return {
+            'status': 'matched',
+            'value': status_value
+        }
+
+    # b) status_value が「その他」で other_description が空欄 → NA（matched扱い）
+    if status_value == 'その他' and not other_description:
+        return {
+            'status': 'matched',
+            'value': 'NA'
+        }
+
+    # c) status_value が「その他」で other_description に値あり → 辞書で照合
+    if status_value == 'その他' and other_description:
+        key = ('その他(記述)', other_description)
+        if key in status_dict:
+            return {
+                'status': 'matched',
+                'value': status_dict[key]
+            }
+        else:
+            # 辞書にない値 → 「その他」に降格、unmatched
+            return {
+                'status': 'unmatched',
+                'value': 'その他',
+                'error': '辞書にない値'
+            }
+
+    # d) status_value が空欄 → unmatched
+    return {
+        'status': 'unmatched',
+        'value': '',
+        'error': '空欄'
+    }
 
 def normalize_country(value, country_dict):
     """国を正規化（国名と国コード両方を返す）
@@ -619,3 +697,36 @@ def country_code_to_name(country_code, input_value=''):
             pass
 
     return ''
+
+def normalize_graduation_month(month_str):
+    """卒業月を正規化（「月」削除、全角→半角）。13は卒業済みの標識"""
+    if not month_str:
+        return ''
+    month_str = str(month_str).strip()
+    if not month_str:
+        return ''
+    month_str = month_str.replace('月', '')
+    month_str = unicodedata.normalize('NFKC', month_str)
+    try:
+        month_num = int(month_str)
+        if 1 <= month_num <= 12 or month_num == 13:  # 13 = 卒業済み
+            return str(month_num)
+        else:
+            return ''
+    except ValueError:
+        return ''
+
+def normalize_graduation_year(year_str):
+    """卒業年を正規化。不正な年は空文字列"""
+    if not year_str:
+        return ''
+    year_str = str(year_str).strip()
+    if not year_str:
+        return ''
+    year_str = year_str.replace('年', '')
+    year_str = unicodedata.normalize('NFKC', year_str)
+    try:
+        year_num = int(year_str)
+        return str(year_num) if 1900 <= year_num <= 2100 else ''
+    except ValueError:
+        return ''

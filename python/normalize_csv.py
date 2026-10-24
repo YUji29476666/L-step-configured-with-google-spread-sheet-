@@ -9,7 +9,7 @@ import os
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name
+from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status
 
 def read_csv(filepath, encoding='shift_jis'):
     """CSV ファイルを読み込む（複数エンコーディング対応）"""
@@ -107,7 +107,13 @@ def normalize_row(row, dicts):
         '7. 現在のステータス',
     ])
 
-    graduation_date = format_graduation_date(graduation_year_raw, graduation_month_raw)
+    # 「その他(記述)」を取得（「7. 現在のステータス」が「その他」の場合に使用）
+    # raw の index 17 が「その他(記述)」に対応（国の「その他（国）」と同じ列）
+    other_description_raw = row.iloc[17] if len(row) > 17 else ''
+
+    graduation_year = normalize_graduation_year(graduation_year_raw)
+    graduation_month = normalize_graduation_month(graduation_month_raw)
+    graduation_date = format_graduation_date(graduation_year, graduation_month)
 
     # 国の処理：「その他」の場合は「その他（記述）」の値を出力
     # country_value_raw が「その他」なら、country_other_raw（raw の「その他(記述)」）を使用
@@ -126,6 +132,7 @@ def normalize_row(row, dicts):
         'school_result': None,
         'major_result': None,
         'minor_major_result': None,
+        'status_result': normalize_status(str(current_status_raw), str(other_description_raw), dicts['status']),
         'status': None
     }
 
@@ -195,6 +202,8 @@ def determine_status(result):
         statuses.append('要確認')
     if result['major_result'].get('status') == 'unmatched':
         statuses.append('未定')
+    if result['status_result'].get('status') == 'unmatched':
+        statuses.append('要確認')
 
     if '要確認' in statuses:
         return '要確認'
@@ -258,13 +267,14 @@ def process_csv(input_filepath, output_filepath=None):
                 '国': get_value(normalized['country_result'].get('value', '')),
                 '学校名': get_value(normalized['school_result'].get('value', '')),
                 '専攻': get_value(normalized['major_result'].get('value', '')),
-                '副専攻': get_value(normalized['minor_major_result'].get('value', '')),
-                '卒業年度': get_value(normalized['graduation_date']),
+                '卒業年': graduation_year,
+                '卒業月': graduation_month,
                 # 項目別のステータス
                 '国_status': get_value(normalized['country_result'].get('status', '')),
                 '学校名_status': get_value(normalized['school_result'].get('status', '')),
                 '専攻_status': get_value(normalized['major_result'].get('status', '')),
-                '副専攻_status': get_value(normalized['minor_major_result'].get('status', '')),
+                'ステータス': get_value(normalized['status_result'].get('value', '')),
+                'ステータス_status': get_value(normalized['status_result'].get('status', '')),
                 'processing_status': get_value(normalized['status'])
             }
             results.append(result_row)
@@ -278,7 +288,8 @@ def process_csv(input_filepath, output_filepath=None):
     output_columns = [
         '現在のステータス', '性別', '取得予定/済み学位',
         '国', '国_status', '学校名', '学校名_status', '専攻', '専攻_status',
-        '副専攻', '副専攻_status', '卒業年度', 'processing_status'
+        'ステータス', 'ステータス_status',
+        '卒業年', '卒業月', 'processing_status'
     ]
     result_df = result_df[output_columns]
 
@@ -557,21 +568,17 @@ def main():
                     '8. 現在の取得予定/取得済みの学位',
                 ])
 
-                # 卒業年度を取得（年と月を組み合わせて「YYYY年M月」形式）
-                grad_year = get_value_from_row(row, [
+                # 卒業年月を取得して正規化
+                grad_year_raw = get_value_from_row(row, [
                     '卒業年度',
                     '13. 最終学歴となる大学・大学院の卒業予定年 / 既卒年',
                 ])
-                grad_month = get_value_from_row(row, [
+                grad_month_raw = get_value_from_row(row, [
                     '卒業月度',
                     '14. 最終学歴となる大学・大学院の卒業予定月 / 既卒月',
                 ])
-                grad_date = ''
-                if grad_year and grad_year != '':
-                    if grad_month and grad_month != '':
-                        grad_date = f"{grad_year}年{grad_month}"
-                    else:
-                        grad_date = f"{grad_year}年"
+                graduation_year = normalize_graduation_year(grad_year_raw)
+                graduation_month = normalize_graduation_month(grad_month_raw)
 
                 # 専攻で「なし」を「未定」に統一
                 major_val = get_value(normalized['major_result'].get('value', row.get('専攻', '')))
@@ -599,12 +606,13 @@ def main():
                     '国': country_original,
                     '学校名': get_value(normalized['school_result'].get('value', row.get('学校名', ''))),
                     '専攻': major_val,
-                    '副専攻': minor_val,
-                    '卒業年度': grad_date,
+                    '卒業年': graduation_year,
+                    '卒業月': graduation_month,
                     '国_status': get_value(normalized['country_result'].get('status', '')),
                     '学校名_status': get_value(normalized['school_result'].get('status', '')),
                     '専攻_status': get_value(normalized['major_result'].get('status', '')),
-                    '副専攻_status': minor_status,
+                    'ステータス': get_value(normalized['status_result'].get('value', '')),
+                    'ステータス_status': get_value(normalized['status_result'].get('status', '')),
                     'processing_status': get_value(normalized['status'])
                 })
             except Exception as e:
