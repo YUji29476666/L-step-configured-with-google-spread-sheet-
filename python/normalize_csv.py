@@ -159,6 +159,11 @@ def normalize_row(row, dicts):
     result['major_result'] = normalize_major(str(major_value_raw), dicts['major'])
     result['minor_major_result'] = normalize_major(str(minor_major_value_raw), dicts['major'])
 
+    # 学校名が5つの特殊値のとき、status を「学校以外」に変更（2026-10-19 ルール）
+    SCHOOL_SPECIAL_VALUES = ['予定なし', '未定', '社会人', '既卒', 'NA']
+    if result['school_result'].get('value') in SCHOOL_SPECIAL_VALUES:
+        result['school_result']['status'] = '学校以外'
+
     result['status'] = determine_status(result)
 
     return result
