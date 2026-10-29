@@ -9,7 +9,7 @@ import os
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_degree
+from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status
 
 def read_csv(filepath, encoding='shift_jis'):
     """CSV ファイルを読み込む（複数エンコーディング対応）"""
@@ -132,7 +132,7 @@ def normalize_row(row, dicts):
         'school_result': None,
         'major_result': None,
         'minor_major_result': None,
-        'degree_result': normalize_degree(str(degree_raw), '', dicts['degree']),
+        'status_result': normalize_status(str(current_status_raw), str(other_description_raw), dicts['status']),
         'status': None
     }
 
@@ -202,7 +202,7 @@ def determine_status(result):
         statuses.append('要確認')
     if result['major_result'].get('status') == 'unmatched':
         statuses.append('未定')
-    if result['degree_result'].get('status') == 'unmatched':
+    if result['status_result'].get('status') == 'unmatched':
         statuses.append('要確認')
 
     if '要確認' in statuses:
@@ -273,8 +273,8 @@ def process_csv(input_filepath, output_filepath=None):
                 '国_status': get_value(normalized['country_result'].get('status', '')),
                 '学校名_status': get_value(normalized['school_result'].get('status', '')),
                 '専攻_status': get_value(normalized['major_result'].get('status', '')),
-                '学位': get_value(normalized['degree_result'].get('value', '')),
-                '学位_status': get_value(normalized['degree_result'].get('status', '')),
+                'ステータス': get_value(normalized['status_result'].get('value', '')),
+                'ステータス_status': get_value(normalized['status_result'].get('status', '')),
                 'processing_status': get_value(normalized['status'])
             }
             results.append(result_row)
@@ -288,7 +288,7 @@ def process_csv(input_filepath, output_filepath=None):
     output_columns = [
         '現在のステータス', '性別', '取得予定/済み学位',
         '国', '国_status', '学校名', '学校名_status', '専攻', '専攻_status',
-        '学位', '学位_status',
+        'ステータス', 'ステータス_status',
         '卒業年', '卒業月', 'processing_status'
     ]
     result_df = result_df[output_columns]
@@ -611,8 +611,8 @@ def main():
                     '国_status': get_value(normalized['country_result'].get('status', '')),
                     '学校名_status': get_value(normalized['school_result'].get('status', '')),
                     '専攻_status': get_value(normalized['major_result'].get('status', '')),
-                    '学位': get_value(normalized['degree_result'].get('value', '')),
-                    '学位_status': get_value(normalized['degree_result'].get('status', '')),
+                    'ステータス': get_value(normalized['status_result'].get('value', '')),
+                    'ステータス_status': get_value(normalized['status_result'].get('status', '')),
                     'processing_status': get_value(normalized['status'])
                 })
             except Exception as e:
