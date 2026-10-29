@@ -53,7 +53,7 @@ def load_dictionaries_from_csv():
         },
         'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
         'major': {},
-        'degree': {}
+        'status': {}
     }
 
     # 学校名の辞書を読み込み

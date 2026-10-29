@@ -603,6 +603,7 @@ def main():
                     '回答者ID': get_value(row.get('回答者ID', '')),
                     '性別': get_value(normalized['gender']),
                     '学位': gakui,
+                    '現在のステータス': get_value(normalized['current_status']),
                     '国': country_original,
                     '学校名': get_value(normalized['school_result'].get('value', row.get('学校名', ''))),
                     '専攻': major_val,
