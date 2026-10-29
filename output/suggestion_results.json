@@ -1,0 +1,163 @@
+{
+  "extracted_at": "2026-10-22T17:40:54.594774",
+  "stats": {
+    "total_unmatched": 20,
+    "dictionary_size": 1268,
+    "threshold": 0.7,
+    "top_k": 3
+  },
+  "results": [
+    {
+      "school_name": "Eszterh?zy K?roly Catholic University",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "Southern California State University",
+      "count": 1,
+      "candidates": [
+        {
+          "school": "Southwestern Oklahoma State University",
+          "variant": "Southwestern Oklahoma State university",
+          "similarity": 0.757,
+          "country_code": ""
+        },
+        {
+          "school": "Florida State University",
+          "variant": "Florida State University",
+          "similarity": 0.733,
+          "country_code": ""
+        },
+        {
+          "school": "Southern Utah University",
+          "variant": "Southern Utah University",
+          "similarity": 0.733,
+          "country_code": ""
+        }
+      ]
+    },
+    {
+      "school_name": "Curious world academy",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "カリフォルニアランゲージオブアカデミー",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "Corpus Christi College",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "早慶",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "シリマン大学",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "ハンバーガー",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "GCC",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "見ている",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "サンフランシスコ",
+      "count": 1,
+      "candidates": [
+        {
+          "school": "San Francisco State University",
+          "variant": "サンフランシスコ州立大学",
+          "similarity": 0.8,
+          "country_code": ""
+        }
+      ]
+    },
+    {
+      "school_name": "F",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "Touro University Graduate School of Technology",
+      "count": 1,
+      "candidates": [
+        {
+          "school": "Brno University of Technology",
+          "variant": "Brno University of Technology",
+          "similarity": 0.72,
+          "country_code": ""
+        }
+      ]
+    },
+    {
+      "school_name": "ブリュッセル自由大学",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "熊本大学大学院",
+      "count": 1,
+      "candidates": [
+        {
+          "school": "University of Tsukuba",
+          "variant": "筑波大学大学院",
+          "similarity": 0.714,
+          "country_code": ""
+        },
+        {
+          "school": "Kyushu University",
+          "variant": "九州大学大学院",
+          "similarity": 0.714,
+          "country_code": ""
+        },
+        {
+          "school": "Osaka University",
+          "variant": "大阪大学大学院",
+          "similarity": 0.714,
+          "country_code": ""
+        }
+      ]
+    },
+    {
+      "school_name": "ch",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "?cole de technologie sup?rieure",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "CDUN",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "Uninter Americas",
+      "count": 1,
+      "candidates": []
+    },
+    {
+      "school_name": "??政法大学",
+      "count": 1,
+      "candidates": []
+    }
+  ]
+}

@@ -7,6 +7,7 @@ import pandas as pd
 import os
 import json
 import pycountry
+import pycountry_convert
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 
@@ -156,7 +157,7 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
             },
             'school': {'JP': {}, 'CA': {}, 'US': {}, 'MY': {}, 'AU': {}, 'Other': {}},
             'major': {},
-            'status': {}
+            'degree': {}
         }
 
         # Google Sheets から学校名対応表を読み込む（国コード対応）
@@ -203,11 +204,11 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
         except Exception as e:
             print(f"[WARN] 専攻対応表の読み込みエラー: {e}")
 
-        # Google Sheets からステータス対応表を読み込む
+        # Google Sheets から学位対応表を読み込む
         try:
             result = service.spreadsheets().values().get(
                 spreadsheetId=spreadsheet_id,
-                range='辞書_ステータス!A2:C'
+                range='辞書_学位!A2:C'
             ).execute()
             values = result.get('values', [])
 
@@ -215,15 +216,15 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
                 if len(row) >= 3:
                     match_type = normalize_text(row[0])      # 「選択肢」or「その他(記述)」
                     input_value = normalize_text(row[1])      # 入力値
-                    unified_status = normalize_text(row[2])   # 統一後のステータス
+                    unified_degree = normalize_text(row[2])   # 統一後の学位
 
-                    if match_type and input_value and unified_status:
-                        status_dict_key = (match_type, input_value)
-                        dicts['status'][status_dict_key] = unified_status
+                    if match_type and input_value and unified_degree:
+                        degree_dict_key = (match_type, input_value)
+                        dicts['degree'][degree_dict_key] = unified_degree
 
-            print(f"[OK] Google Sheets から {len(values)} 件のステータス対応表を読み込みました")
+            print(f"[OK] Google Sheets から {len(values)} 件の学位対応表を読み込みました")
         except Exception as e:
-            print(f"[WARN] ステータス対応表の読み込みエラー: {e}")
+            print(f"[WARN] 学位対応表の読み込みエラー: {e}")
 
         return dicts
 
@@ -244,45 +245,45 @@ def load_dictionaries(use_sheets=False, spreadsheet_id=None, credentials_path=No
     else:
         return load_dictionaries_from_csv()
 
-def normalize_status(status_value, other_description, status_dict):
-    """現在のステータスを正規化
+def normalize_degree(degree_value, other_description, degree_dict):
+    """学位を正規化
 
     Args:
-        status_value (str): 「7. 現在のステータス」の値（選択肢）
+        degree_value (str): 「8. 現在の取得予定/取得済みの学位」の値（選択肢）
         other_description (str): 「その他(記述)」の値
-        status_dict (dict): 辞書（キー：(match_type, input_value), 値：統一後のステータス）
+        degree_dict (dict): 辞書（キー：(match_type, input_value), 値：統一後の学位）
 
     Returns:
         {
             'status': 'matched' | 'unmatched',
-            'value': '統一後のステータス値' | 'その他' | 'NA' | '',
+            'value': '統一後の学位' | 'その他' | 'NA' | '',
             'error': (オプション) エラーメッセージ
         }
     """
-    status_value = normalize_text(status_value)
+    degree_value = normalize_text(degree_value)
     other_description = normalize_text(other_description)
 
-    # a) status_value が「その他」以外 → 選択肢をそのまま返す
-    if status_value and status_value != 'その他':
+    # a) degree_value が「その他」以外 → 選択肢をそのまま返す
+    if degree_value and degree_value != 'その他':
         return {
             'status': 'matched',
-            'value': status_value
+            'value': degree_value
         }
 
-    # b) status_value が「その他」で other_description が空欄 → NA（matched扱い）
-    if status_value == 'その他' and not other_description:
+    # b) degree_value が「その他」で other_description が空欄 → NA（matched扱い）
+    if degree_value == 'その他' and not other_description:
         return {
             'status': 'matched',
             'value': 'NA'
         }
 
-    # c) status_value が「その他」で other_description に値あり → 辞書で照合
-    if status_value == 'その他' and other_description:
+    # c) degree_value が「その他」で other_description に値あり → 辞書で照合
+    if degree_value == 'その他' and other_description:
         key = ('その他(記述)', other_description)
-        if key in status_dict:
+        if key in degree_dict:
             return {
                 'status': 'matched',
-                'value': status_dict[key]
+                'value': degree_dict[key]
             }
         else:
             # 辞書にない値 → 「その他」に降格、unmatched
@@ -292,7 +293,7 @@ def normalize_status(status_value, other_description, status_dict):
                 'error': '辞書にない値'
             }
 
-    # d) status_value が空欄 → unmatched
+    # d) degree_value が空欄 → unmatched
     return {
         'status': 'unmatched',
         'value': '',
@@ -665,6 +666,7 @@ def determine_status(result):
 def country_code_to_name(country_code, input_value=''):
     """
     country_code または input_value から国名（英語）を取得
+    pycountry の返り値を標準的な名前にマッピング
 
     Args:
         country_code: ISO 3166-1 alpha-2 コード (JP, US など)
@@ -673,6 +675,16 @@ def country_code_to_name(country_code, input_value=''):
     Returns:
         英語の国名（例：Japan, United States）、見つからない場合は空文字列
     """
+    # pycountry の名前をより標準的な名前にマッピング
+    COUNTRY_NAME_MAPPING = {
+        'Taiwan, Province of China': 'Taiwan',
+        'Korea, Republic of': 'South Korea',
+        "Korea, Democratic People's Republic of": 'North Korea',
+        'Virgin Islands, British': 'British Virgin Islands',
+        'Virgin Islands, U.S.': 'U.S. Virgin Islands',
+        'Saint Helena, Ascension and Tristan da Cunha': 'Saint Helena',
+    }
+
     if not country_code and not input_value:
         return ''
 
@@ -680,7 +692,9 @@ def country_code_to_name(country_code, input_value=''):
         try:
             country = pycountry.countries.get(alpha_2=country_code)
             if country:
-                return country.name
+                original_name = country.name
+                # マッピングテーブルで置き換え
+                return COUNTRY_NAME_MAPPING.get(original_name, original_name)
         except Exception:
             pass
 
@@ -690,9 +704,12 @@ def country_code_to_name(country_code, input_value=''):
             return ''
 
         try:
+            # フォールバック：pycountry で検索
             country = pycountry.countries.search.name(input_str)
             if country:
-                return country.name
+                original_name = country.name
+                # マッピングテーブルで置き換え
+                return COUNTRY_NAME_MAPPING.get(original_name, original_name)
         except Exception:
             pass
 
