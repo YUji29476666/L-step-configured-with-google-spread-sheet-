@@ -9,7 +9,7 @@ import os
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status, translate_major_to_english
+from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status
 
 def read_csv(filepath, encoding='shift_jis'):
     """CSV ファイルを読み込む（複数エンコーディング対応）"""
@@ -59,11 +59,6 @@ def normalize_row(row, dicts):
     major_value_raw = get_value_from_row(row, [
         '専攻',
         '11. 現在、在学している学校での専攻（例：会計学）',
-    ])
-
-    minor_major_value_raw = get_value_from_row(row, [
-        '副専攻',
-        '12. 現在、在学している学校での副専攻（例：言語学）',
     ])
 
     country_value_raw = get_value_from_row(row, [
@@ -156,17 +151,11 @@ def normalize_row(row, dicts):
         country_code
     )
 
-    result['major_result'] = normalize_major(str(major_value_raw), dicts['major'])
-    result['minor_major_result'] = normalize_major(str(minor_major_value_raw), dicts['major'])
-
-    # 専攻を日本語→英語に変換（2026-11-03 ルール）
-    if result['major_result'] and result['major_result'].get('value'):
-        english_major = translate_major_to_english(result['major_result']['value'])
-        result['major_result']['value'] = english_major
-
-    if result['minor_major_result'] and result['minor_major_result'].get('value'):
-        english_minor = translate_major_to_english(result['minor_major_result']['value'])
-        result['minor_major_result']['value'] = english_minor
+    # major_matching_dict があれば渡す（値全体の直接照合用）
+    major_matching = dicts.get('major_matching', {})
+    result['major_result'] = normalize_major(str(major_value_raw), dicts['major'], major_matching)
+    # 副専攻は使用しないため、処理を削除
+    result['minor_major_result'] = None
 
     # 学校名が5つの特殊値のとき、status を「学校以外」に変更（2026-10-19 ルール）
     SCHOOL_SPECIAL_VALUES = ['予定なし', '未定', '社会人', '既卒', 'NA']
@@ -599,19 +588,7 @@ def main():
                 if major_val in ['なし', '']:
                     major_val = '未定'
 
-                # ルール5：副専攻の空欄を「なし」に分類
-                minor_input = get_value_from_row(row, ['副専攻', '12. 現在、在学している学校での副専攻（例：言語学）'])
-                minor_val = get_value(normalized['minor_major_result'].get('value', row.get('副専攻', '')))
-                minor_status = get_value(normalized['minor_major_result'].get('status', ''))
-
-                # 副専攻で「なし」の場合は空欄に統一
-                if minor_val in ['なし', '']:
-                    minor_val = ''
-
-                # 元の値が空欄の場合、ステータスを「なし」に変更
-                if not minor_input or minor_input.strip() == '':
-                    minor_val = ''
-                    minor_status = 'なし'
+                # 副専攻の処理は削除（2026-11-03）
 
                 results.append({
                     '回答者ID': get_value(row.get('回答者ID', '')),

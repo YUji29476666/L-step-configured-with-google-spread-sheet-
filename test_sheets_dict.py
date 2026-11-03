@@ -23,8 +23,10 @@ school_dict = dicts['school']['Other']
 print(f"✓ {len(school_dict)} 件の学校名対応を読み込みました\n")
 
 # テストデータを読み込み
-test_file = '../lstep-data-updates/acceptance_tests.csv'
-df = pd.read_csv(test_file, encoding='utf-8')
+import os
+test_file = os.path.join(os.path.dirname(__file__), '../lstep-data-updates/acceptance_tests.csv')
+test_file = os.path.abspath(test_file)
+df = pd.read_csv(test_file, encoding='utf-8', keep_default_na=False)
 
 # 学校名のテストケースを抽出
 school_tests = df[df['項目'] == '学校名'].reset_index(drop=True)
@@ -74,16 +76,20 @@ for idx, row in school_tests.iterrows():
     # 一致判定
     is_match = (actual == expected)
 
+    input_str = str(input_value).strip() if pd.notna(input_value) else ""
+    actual_str = str(actual).strip() if pd.notna(actual) else ""
+    expected_str = str(expected).strip() if pd.notna(expected) else ""
+
     if is_match:
         matches += 1
-        status = "✓"
+        status = "OK"
         country_str = f" ({country_code})" if country_code else ""
-        print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s}{country_str}")
+        print(f"{status} [{idx+1:2d}] {input_str:30s} -> {actual_str:40s}{country_str}")
     else:
         mismatches.append((idx+1, input_value, actual, expected, country_code))
-        status = "✗"
+        status = "FAIL"
         country_str = f" ({country_code})" if country_code else ""
-        print(f"{status} [{idx+1:2d}] {input_value:30s} → {actual:40s} (期待: {expected}){country_str}")
+        print(f"{status} [{idx+1:2d}] {input_str:30s} -> {actual_str:40s} (expected: {expected_str}){country_str}")
 
 # 結果表示
 print(f"\n{'='*100}")
@@ -92,12 +98,12 @@ print(f"不一致数：{len(mismatches)}/{len(school_tests)} ({100*len(mismatche
 print(f"{'='*100}")
 
 if mismatches:
-    print("\n❌ 不一致の詳細：")
+    print("\nMismatches:")
     for mismatch_data in mismatches:
         idx = mismatch_data[0]
-        input_val = mismatch_data[1]
-        actual = mismatch_data[2]
-        expected = mismatch_data[3]
+        input_val = str(mismatch_data[1]).strip() if pd.notna(mismatch_data[1]) else ""
+        actual = str(mismatch_data[2]).strip() if pd.notna(mismatch_data[2]) else ""
+        expected = str(mismatch_data[3]).strip() if pd.notna(mismatch_data[3]) else ""
         country = mismatch_data[4] if len(mismatch_data) > 4 else None
         country_str = f" ({country})" if country else ""
-        print(f"  [{idx:2d}] {input_val:30s} → {actual:40s} (期待: {expected}){country_str}")
+        print(f"  [{idx:2d}] {input_val:30s} -> {actual:40s} (expected: {expected}){country_str}")

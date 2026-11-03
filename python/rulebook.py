@@ -26,6 +26,32 @@ def normalize_text(text):
 
     return text
 
+def normalize_for_matching(text):
+    """照合用に完全に正規化（大文字小文字区別なし、見えない文字削除）"""
+    if text is None:
+        return ''
+
+    text = str(text).strip()
+    if text == '':
+        return ''
+
+    # Step 1: NFKC正規化
+    text = unicodedata.normalize('NFKC', text)
+
+    # Step 2: 前後の空白を除く
+    text = text.strip()
+
+    # Step 3: 連続する空白（全角空白を含む）を1つに
+    text = re.sub(r'[\s　]+', ' ', text)
+
+    # Step 4: ゼロ幅スペースなど見えない文字を削除
+    text = re.sub(r'[​‌‍﻿؜]', '', text)
+
+    # Step 5: casefold（大文字小文字を統一）
+    text = text.casefold()
+
+    return text.strip()
+
 def load_dictionaries_from_csv():
     """CSV ファイルから辞書を読み込む"""
     base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -92,31 +118,6 @@ def load_dictionaries_from_csv():
 
                 if variant_list:
                     dicts['major'][unified] = variant_list
-
-    # 副専攻の辞書を読み込み
-    minor_csv = os.path.join(base_path, 'data', 'minor_major_mapping.csv')
-    if os.path.exists(minor_csv):
-        df = pd.read_csv(minor_csv, encoding='utf-8')
-        for _, row in df.iterrows():
-            unified = normalize_text(row.get('統一後の値', ''))
-            variants_str = str(row.get('まとめられる元の値(すべて)', ''))
-
-            # 副専攻は major_dict と同じ構造を使用
-            if pd.isna(unified) or unified == '':
-                unified = ''  # 空欄を保持
-
-            if variants_str and not pd.isna(variants_str):
-                # 括弧内の数字を削除して表記揺れを抽出
-                variants = re.sub(r'\(\d+\)', '', variants_str)
-                variant_list = []
-                for variant in variants.split('、'):
-                    variant = normalize_text(variant)
-                    if variant:
-                        variant_list.append(variant)
-
-                if variant_list:
-                    if unified not in dicts['major']:
-                        dicts['major'][unified] = variant_list
 
     return dicts
 
@@ -191,6 +192,9 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
             ).execute()
             values = result.get('values', [])
 
+            # 照合用辞書を追加で作成
+            major_matching_dict = {}
+
             for row in values:
                 if len(row) >= 2:
                     variant = normalize_text(row[0])
@@ -200,9 +204,20 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
                             dicts['major'][unified] = []
                         dicts['major'][unified].append(variant)
 
+                        # 照合用辞書に表記揺れを追加：normalize_for_matching(表記揺れ) → 統一名
+                        variant_key = normalize_for_matching(variant)
+                        major_matching_dict[variant_key] = unified
+
+            # 統一名の照合キーも追加（統一名そのものが入力された場合）
+            for unified_name in dicts['major'].keys():
+                unified_key = normalize_for_matching(unified_name)
+                major_matching_dict[unified_key] = unified_name
+
             print(f"[OK] Google Sheets から {len(values)} 件の専攻対応表を読み込みました")
+            print(f"[OK] 照合用辞書を構築しました: {len(major_matching_dict)} キー")
         except Exception as e:
             print(f"[WARN] 専攻対応表の読み込みエラー: {e}")
+            major_matching_dict = {}
 
         # Google Sheets からステータス対応表を読み込む
         try:
@@ -225,6 +240,9 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
             print(f"[OK] Google Sheets から {len(values)} 件のステータス対応表を読み込みました")
         except Exception as e:
             print(f"[WARN] ステータス対応表の読み込みエラー: {e}")
+
+        # 照合用辞書を dicts に追加
+        dicts['major_matching'] = major_matching_dict
 
         return dicts
 
@@ -434,21 +452,9 @@ def normalize_school(value, school_dict, country=None):
     if value in ['留学の予定なし', '希望なし', 'なしなし', '-', 'なし']:
         return {'status': 'matched', 'value': '予定なし'}
 
-    # 「未定」
-    if value in ['未定', 'まだ決めていない', 'Undecided', 'わからない', '考え中']:
-        return {'status': 'matched', 'value': '未定'}
-
     # 「社会人」
     if value in ['社会人', 'フリーター', '自営業']:
         return {'status': 'matched', 'value': '社会人'}
-
-    # 「既卒」
-    if value in ['卒業済み', '既卒', '既卒(日本の大学)', '卒業後']:
-        return {'status': 'matched', 'value': '既卒'}
-
-    # 「NA」
-    if value in ['在学してません', '在学なし', 'coop留学', '語学学校', '現在オペア留学中', 'NA', 'Na', '大学', '留学済み']:
-        return {'status': 'matched', 'value': 'NA'}
 
     # 複数学校が書かれている場合
     if '、' in value or '/' in value or '→' in value or '・' in value:
@@ -540,24 +546,24 @@ def normalize_school(value, school_dict, country=None):
     # マッチなし
     return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
 
-def normalize_major(value, major_dict):
+def normalize_major(value, major_dict, major_matching_dict=None):
     """専攻・副専攻を日本語に統一"""
     value = normalize_text(value)
 
     if not value or value == '':
         return {'status': 'unmatched', 'value': '', 'error': '空欄'}
 
-    # 「なし」「未定」などの特殊値
+    # 「なし」などの特殊値
     if value in ['なし', '無し']:
-        return {'status': 'matched', 'value': ''}
+        return {'status': 'matched', 'value': 'NA'}
 
-    if value in ['未定', 'わからない', '分からない', '考え中', '勉強']:
-        return {'status': 'matched', 'value': '未定'}
-
-    # ルール2：正式名がそのまま入力された場合を matched に
-    # 辞書の統一後の値と完全一致する場合、そのまま返す
-    if value in major_dict:
-        return {'status': 'matched', 'value': value}
+    # 【新規】ステップ1：値全体の直接照合（最優先）
+    # major_matching_dict を使用して、照合キーで直接引く
+    if major_matching_dict:
+        value_key = normalize_for_matching(value)
+        if value_key in major_matching_dict:
+            matched_unified = major_matching_dict[value_key]
+            return {'status': 'matched', 'value': matched_unified}
 
     # 複数値が書かれている場合
     if any(sep in value for sep in ['、', ',', '/', '・', 'and', '&']):
@@ -586,16 +592,24 @@ def normalize_major(value, major_dict):
             # 括弧内を削除
             part = re.sub(r'[（(].*?[）)]', '', part).strip()
 
-            # 直接マッチ
-            if part in major_dict:
-                unified_majors.append(part)
-            else:
+            # 直接マッチ（正規化されたキーで照合）
+            part_key = normalize_for_matching(part)
+            matched = False
+            for unified_name in major_dict.keys():
+                if normalize_for_matching(unified_name) == part_key:
+                    unified_majors.append(unified_name)
+                    matched = True
+                    break
+
+            if not matched:
                 # 表記揺れマッチ
-                matched = False
                 for unified_name, variants in major_dict.items():
-                    if part in variants:
-                        unified_majors.append(unified_name)
-                        matched = True
+                    for variant in variants:
+                        if normalize_for_matching(variant) == part_key:
+                            unified_majors.append(unified_name)
+                            matched = True
+                            break
+                    if matched:
                         break
 
                 if not matched and part:
@@ -618,14 +632,17 @@ def normalize_major(value, major_dict):
     # 末尾の「専攻」を削除（例：電気工学専攻 → 電気工学）
     clean_value = re.sub(r'専攻$', '', clean_value).strip()
 
-    # 直接マッチ
-    if clean_value in major_dict:
-        return {'status': 'matched', 'value': clean_value}
+    # 直接マッチ（正規化されたキーで照合）
+    clean_value_key = normalize_for_matching(clean_value)
+    for unified_name in major_dict.keys():
+        if normalize_for_matching(unified_name) == clean_value_key:
+            return {'status': 'matched', 'value': unified_name}
 
     # 表記揺れマッチ
     for unified_name, variants in major_dict.items():
-        if clean_value in variants:
-            return {'status': 'matched', 'value': unified_name}
+        for variant in variants:
+            if normalize_for_matching(variant) == clean_value_key:
+                return {'status': 'matched', 'value': unified_name}
 
     # マッチなし
     return {'status': 'unmatched', 'value': value, 'error': '辞書にない値'}
@@ -747,193 +764,3 @@ def normalize_graduation_year(year_str):
     except ValueError:
         return ''
 
-def translate_major_to_english(major_name):
-    """日本語専攻を英語に変換（2026-11-03 英語統一）"""
-    if not major_name:
-        return major_name
-
-    mapping = {
-        'コミュニケーション': 'Communication',
-        'コンピュータサイエンス': 'Computer Science',
-        'コンピューターサイエンス': 'Computer Science',
-        'ビジネス': 'Business',
-        'ビジネス学部': 'Business School',
-        'ファイナンス': 'Finance',
-        'マーケティング': 'Marketing',
-        'リベラルアーツ': 'Liberal Arts',
-        '一般教養': 'General Education',
-        '会計': 'Accounting',
-        '会計学': 'Accounting',
-        '国際ビジネス': 'International Business',
-        '国際ビジネス学': 'International Business',
-        '国際教養': 'International Studies',
-        '国際教養学': 'International Liberal Arts',
-        '国際教養学部': 'International Liberal Arts',
-        '国際関係': 'International Relations',
-        '国際関係学': 'International Relations',
-        '国際関係論': 'International Relations',
-        '国際経営': 'International Management',
-        '国際経済': 'International Economics',
-        '工学': 'Engineering',
-        '工学部': 'Engineering',
-        '心理学': 'Psychology',
-        '既卒': 'Alumni',
-        '未定': 'Undecided',
-        '法学': 'Law',
-        '法学部法律学科': 'Law',
-        '生物学': 'Biology',
-        '社会学': 'Sociology',
-        '経営': 'Business Management',
-        '経済': 'Economics',
-        '言語学': 'Linguistics',
-        '語学・準備課程': 'Language/Preparatory Program',
-        '金融': 'Finance',
-        '金融学': 'Finance',
-        '政治経済学': 'Political Economy',
-        '教育': 'Education',
-        '高校生': 'High School Student',
-        # 2026-11-03 追加：統合可能な 132 件（キーワードベース）
-        # ビジネス関連（23 件）
-        'ビジネス分析学': 'Business',
-        'ビジネス学部 Business Analytics学科': 'Business Management',
-        'ビジネス学部都市野生': 'Business',
-        '国際ビジネス学部': 'Business',
-        'グローバルビジネス学部': 'Business',
-        'ビジネス/会計学': 'Business',
-        'ビジネス(経営、マーケティング、HR)': 'Business',
-        '国際ビジネス/経営': 'Business',
-        '国際ビジネス学部': 'Business',
-        '国際ビジネス・経営': 'Business',
-        'コンピューターサイエンス/ビジネス': 'Business',
-        '会計学/ビジネスアナリティクス': 'Business',
-        'ビジネス/Economics': 'Business',
-        'ビジネスアナリティクス': 'Business',
-        'ビジネス/マーケティング': 'Business',
-        'ビジネス マーケティング専攻': 'Business',
-        'ビジネスアナリシス': 'Business',
-        'ビジネスエコノミクス': 'Business',
-        '国際ビジネスマネージメント': 'Business',
-        'インターナショナルビジネス': 'Business',
-        'ビジネス学': 'Business',
-        'ビジネス学部': 'Business',
-        'ビジネス学科': 'Business',
-        # 経営関連（14 件）
-        '経営/Economics': 'Business Management',
-        '経営経営': 'Business Management',
-        '経営学部 Business Analytics学科': 'Business Management',
-        '経営、コミュニケーション、国際交流': 'Business Management',
-        '国際経営': 'Business Management',
-        '経営/経営': 'Business Management',
-        '国際経営社会学部': 'Business Management',
-        '経営学部データサイエンス学科': 'Business Management',
-        '経営学部(経営学，経営学)': 'Business Management',
-        '経営・データサイエンス': 'Business Management',
-        '経営経営': 'Business Management',
-        '経営/Business Administration': 'Business Management',
-        # マーケティング関連（11 件）
-        '経営学マーケティング専攻': 'Marketing',
-        'Business Administration/マーケティング/マーケティング': 'Marketing',
-        'マーケティング/ファイナンス': 'Marketing',
-        'マーケティング/Communication & Media': 'Marketing',
-        'Arts/マーケティング': 'Marketing',
-        'Business Administration/マーケティング': 'Marketing',
-        'マーケティング/Business Administration': 'Marketing',
-        '商(マーケティング専攻予定)': 'Marketing',
-        '国際経営/マーケティング': 'Marketing',
-        'マーケティング/心理学支援': 'Marketing',
-        # 国際関連（11 件）
-        '国際関係学/社会学': 'International Studies',
-        '国際学部': 'International Studies',
-        '社会学/国際関係学': 'International Studies',
-        '国際学位': 'International Studies',
-        '国際研究学部': 'International Studies',
-        '国際(フォーカス:経営)': 'International Studies',
-        '商(国際関係学部)': 'International Studies',
-        '国際(国際関係学部)': 'International Studies',
-        '国際・経営': 'International Studies',
-        '国際関係/美術・美術': 'International Studies',
-        # 工学関連（10 件）
-        '電気情報工学科': 'Engineering',
-        'システム工学科(電気電子工学科)': 'Engineering',
-        'システム工学科': 'Engineering',
-        '工学/経済': 'Engineering',
-        '無線通信工学科': 'Engineering',
-        '工学(ナノ化学)、環境学(環境学・環境学)': 'Engineering',
-        '工学・技術・工学科': 'Engineering',
-        '工学/Economics': 'Engineering',
-        '専門工学': 'Engineering',
-        '工学(nanochemistry)': 'Engineering',
-        # 政治関連（7 件）
-        '政治経済学部': 'Political Science',
-        '政治': 'Political Science',
-        '政治/Environmental Studies': 'Political Science',
-        '政治/社会学': 'Political Science',
-        '政治学科': 'Political Science',
-        # 金融関連（7 件）
-        '商学部金融学科': 'Finance',
-        'Economics/金融学': 'Finance',
-        '金融学/Marketing': 'Finance',
-        '商科・金融学': 'Finance',
-        '金融・環境': 'Finance',
-        '金融学・経営': 'Finance',
-        # 社会関連（7 件）
-        '知能情報社会学部': 'Social Sciences',
-        '社会学/社会学': 'Social Sciences',
-        '社会学部': 'Social Sciences',
-        '社会学、法・アジア学': 'Social Sciences',
-        '市民社会学/社会学': 'Social Sciences',
-        '社会学、社会学': 'Social Sciences',
-        # コミュニケーション関連（6 件）
-        'グローバルコミュニケーション': 'Communication',
-        'Communication & Media/コミュニケーション': 'Communication',
-        '国際コミュニケーション学部': 'Communication',
-        'コミュニケーション専攻': 'Communication',
-        'コミュニケーション学科・文学部': 'Communication',
-        # 開発関連（4 件）
-        '開発学': 'Development',
-        '国際開発': 'Development',
-        '国際関係学/開発学': 'Development',
-        # 会計学関連（4 件）
-        '会計学/ファイナンス': 'Accounting',
-        '会計学/Economics': 'Accounting',
-        '会計学、金融': 'Accounting',
-        # 情報関連（4 件）
-        '情報': 'Computer Science',
-        '諸学制・通信科学': 'Computer Science',
-        '情報・美術': 'Computer Science',
-        # コンピュータ関連（4 件）
-        'Cybersecurity/コンピューターサイエンス': 'Computer Science',
-        'コンピューターサイエンス学部': 'Computer Science',
-        'コンピューター・サイエンス/Mathematics': 'Computer Science',
-        'コンピューター・サイエンス/International Business': 'Computer Science',
-        # 教養関連（3 件）
-        '教養学': 'Liberal Arts',
-        '教養学部': 'Liberal Arts',
-        # マネージメント関連（3 件）
-        'マネージメント': 'Business Management',
-        'Economics/マネージメント': 'Business Management',
-        # 法学関連（3 件）
-        '法学部政治学科': 'Law',
-        '法学/Law': 'Law',
-        # 経済関連（3 件）
-        '経営/数学': 'Economics',
-        '留学・経営': 'Economics',
-        'Major 経営学': 'Economics',
-        # データサイエンス関連（2 件）
-        'データサイエンス学部': 'Data Science',
-        # 言語関連（2 件）
-        '言語学/社会学': 'Linguistics',
-        '言語学部': 'Linguistics',
-        # 2026-11-03 追加：高頻度 4 種類（2件以上の専攻）
-        '会計学 / ファイナンス': 'Accounting',
-        '経営 / Economics': 'Business Management',
-        '起業学': 'Entrepreneurship',
-        '経済経営': 'Economics and Management',
-        # 2026-11-03 追加：Cleaned に残った日本語 4 種類
-        'アフリカ研究専攻': 'African Studies',
-        'インダストリアルエンジニア': 'Industrial Engineering',
-        '神経科学': 'Neuroscience',
-        '行動科学/社会学': 'Behavioral Science',
-    }
-
-    return mapping.get(major_name, major_name)

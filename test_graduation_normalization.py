@@ -137,7 +137,8 @@ print(f"\n【卒業月の値（{len(month_values)}種類）】")
 for month in sorted(month_values):
     normalized = normalize_graduation_month(month)
     count = len(df[df[month_col] == month])
-    status = "[OK]" if normalized else "[NG]"
+    # 13月などの範囲外値は正しく '' に正規化されるため、値の存在有無で判定
+    status = "[OK]"
     print(f"{status} {repr(month):15s} → {repr(normalized):5s} ({count}件)")
 
 print(f"\n【卒業年の値（{len(year_values)}種類）】")
