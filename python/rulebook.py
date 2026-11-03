@@ -549,8 +549,7 @@ def normalize_major(value, major_dict):
 
     # 「なし」「未定」などの特殊値
     if value in ['なし', '無し']:
-        import pandas as pd
-        return {'status': 'matched', 'value': pd.NA}
+        return {'status': 'matched', 'value': ''}
 
     if value in ['未定', 'わからない', '分からない', '考え中', '勉強']:
         return {'status': 'matched', 'value': '未定'}
