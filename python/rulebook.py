@@ -925,6 +925,11 @@ def translate_major_to_english(major_name):
         # 言語関連（2 件）
         '言語学/社会学': 'Linguistics',
         '言語学部': 'Linguistics',
+        # 2026-11-03 追加：高頻度 4 種類（2件以上の専攻）
+        '会計学 / ファイナンス': 'Accounting',
+        '経営 / Economics': 'Business Management',
+        '起業学': 'Entrepreneurship',
+        '経済経営': 'Economics and Management',
     }
 
     return mapping.get(major_name, major_name)
