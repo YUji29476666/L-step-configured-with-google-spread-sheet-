@@ -930,6 +930,11 @@ def translate_major_to_english(major_name):
         '経営 / Economics': 'Business Management',
         '起業学': 'Entrepreneurship',
         '経済経営': 'Economics and Management',
+        # 2026-11-03 追加：Cleaned に残った日本語 4 種類
+        'アフリカ研究専攻': 'African Studies',
+        'インダストリアルエンジニア': 'Industrial Engineering',
+        '神経科学': 'Neuroscience',
+        '行動科学/社会学': 'Behavioral Science',
     }
 
     return mapping.get(major_name, major_name)
