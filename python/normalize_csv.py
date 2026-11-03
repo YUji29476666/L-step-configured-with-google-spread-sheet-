@@ -9,7 +9,7 @@ import os
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status
+from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status, translate_major_to_english
 
 def read_csv(filepath, encoding='shift_jis'):
     """CSV ファイルを読み込む（複数エンコーディング対応）"""
@@ -158,6 +158,15 @@ def normalize_row(row, dicts):
 
     result['major_result'] = normalize_major(str(major_value_raw), dicts['major'])
     result['minor_major_result'] = normalize_major(str(minor_major_value_raw), dicts['major'])
+
+    # 専攻を日本語→英語に変換（2026-11-03 ルール）
+    if result['major_result'] and result['major_result'].get('value'):
+        english_major = translate_major_to_english(result['major_result']['value'])
+        result['major_result']['value'] = english_major
+
+    if result['minor_major_result'] and result['minor_major_result'].get('value'):
+        english_minor = translate_major_to_english(result['minor_major_result']['value'])
+        result['minor_major_result']['value'] = english_minor
 
     # 学校名が5つの特殊値のとき、status を「学校以外」に変更（2026-10-19 ルール）
     SCHOOL_SPECIAL_VALUES = ['予定なし', '未定', '社会人', '既卒', 'NA']

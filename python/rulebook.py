@@ -747,3 +747,43 @@ def normalize_graduation_year(year_str):
         return str(year_num) if 1900 <= year_num <= 2100 else ''
     except ValueError:
         return ''
+
+def translate_major_to_english(major_name):
+    """日本語専攻を英語に変換（2026-11-03 英語統一）"""
+    if not major_name:
+        return major_name
+
+    mapping = {
+        'コミュニケーション': 'Communication',
+        'コンピュータサイエンス': 'Computer Science',
+        'コンピューターサイエンス': 'Computer Science',
+        'ビジネス': 'Business',
+        'ビジネス学部': 'Business School',
+        'ファイナンス': 'Finance',
+        'マーケティング': 'Marketing',
+        'リベラルアーツ': 'Liberal Arts',
+        '一般教養': 'General Education',
+        '会計': 'Accounting',
+        '会計学': 'Accounting',
+        '国際ビジネス': 'International Business',
+        '国際教養': 'International Studies',
+        '国際教養学部': 'International Liberal Arts',
+        '国際関係': 'International Relations',
+        '国際関係学': 'International Relations',
+        '国際関係論': 'International Relations',
+        '工学': 'Engineering',
+        '心理学': 'Psychology',
+        '既卒': 'Alumni',
+        '未定': 'Undecided',
+        '法学': 'Law',
+        '生物学': 'Biology',
+        '社会学': 'Sociology',
+        '経営': 'Business Management',
+        '経済': 'Economics',
+        '言語学': 'Linguistics',
+        '語学・準備課程': 'Language/Preparatory Program',
+        '金融学': 'Finance',
+        '高校生': 'High School Student',
+    }
+
+    return mapping.get(major_name, major_name)
