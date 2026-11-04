@@ -39,6 +39,37 @@ def format_graduation_date(year, month):
 
     return f"{year}年{month}月"
 
+def get_major_field(major_value, major_field_dict):
+    """専攻の値から分野を決める
+
+    「 / 」で分けた各統一名の分野がすべて同じなら、その分野
+    違う分野が混ざっていたら「複数分野」
+    対応表にない値なら空欄
+    """
+    if not major_value or major_value in ['', 'NA', '未定', '既卒', '高校生', '語学・準備課程']:
+        return '専攻以外'
+
+    # 「 / 」で分割
+    parts = major_value.split(' / ')
+
+    fields = []
+    for part in parts:
+        part = part.strip()
+        field = major_field_dict.get(part, '')
+        if field:
+            fields.append(field)
+
+    if not fields:
+        # 対応表にない値
+        return ''
+
+    # すべて同じか確認
+    unique_fields = set(fields)
+    if len(unique_fields) == 1:
+        return fields[0]
+    else:
+        return '複数分野'
+
 def normalize_row(row, dicts):
     """1行分のデータを正規化"""
     # DEBUG: 最初の行だけ列名と性別を確認（デバッグ用）
@@ -156,6 +187,12 @@ def normalize_row(row, dicts):
     result['major_result'] = normalize_major(str(major_value_raw), dicts['major'], major_matching)
     # 副専攻は使用しないため、処理を削除
     result['minor_major_result'] = None
+
+    # 専攻の分野を決める
+    major_field_dict = dicts.get('major_field', {})
+    major_value = result['major_result'].get('value', '')
+    major_field_value = get_major_field(major_value, major_field_dict)
+    result['major_field'] = major_field_value
 
     # 学校名が5つの特殊値のとき、status を「学校以外」に変更（2026-10-19 ルール）
     SCHOOL_SPECIAL_VALUES = ['予定なし', '未定', '社会人', '既卒', 'NA']
@@ -603,6 +640,7 @@ def main():
                     '国_status': get_value(normalized['country_result'].get('status', '')),
                     '学校名_status': get_value(normalized['school_result'].get('status', '')),
                     '専攻_status': get_value(normalized['major_result'].get('status', '')),
+                    '専攻_分野': get_value(normalized.get('major_field', '')),
                     'ステータス': get_value(normalized['status_result'].get('value', '')),
                     'ステータス_status': get_value(normalized['status_result'].get('status', '')),
                     'processing_status': get_value(normalized['status'])

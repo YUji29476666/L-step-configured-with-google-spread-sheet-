@@ -119,6 +119,20 @@ def load_dictionaries_from_csv():
                 if variant_list:
                     dicts['major'][unified] = variant_list
 
+    # 専攻の分野を読み込み
+    major_field_csv = os.path.join(base_path, 'data', 'major_field.csv')
+    major_field = {}
+    if os.path.exists(major_field_csv):
+        df = pd.read_csv(major_field_csv, keep_default_na=False, dtype=str)
+        for _, row in df.iterrows():
+            if len(row) >= 2:
+                unified = str(row.iloc[0]).strip()
+                field = str(row.iloc[1]).strip()
+                if unified:
+                    major_field[unified] = field
+
+    dicts['major_field'] = major_field
+
     return dicts
 
 def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
@@ -243,6 +257,22 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
 
         # 照合用辞書を dicts に追加
         dicts['major_matching'] = major_matching_dict
+
+        # 専攻の分野を読み込み（CSV から読み込む）
+        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        major_field_csv = os.path.join(base_path, 'data', 'major_field.csv')
+        major_field = {}
+        if os.path.exists(major_field_csv):
+            import pandas as pd
+            df = pd.read_csv(major_field_csv, keep_default_na=False, dtype=str)
+            for _, row in df.iterrows():
+                if len(row) >= 2:
+                    unified = str(row.iloc[0]).strip()
+                    field = str(row.iloc[1]).strip()
+                    if unified:
+                        major_field[unified] = field
+
+        dicts['major_field'] = major_field
 
         return dicts
 
