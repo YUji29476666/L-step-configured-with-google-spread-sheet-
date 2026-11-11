@@ -7,25 +7,25 @@ from rulebook import normalize_status
 class TestNormalizeStatus(unittest.TestCase):
     def setUp(self):
         """テスト用辞書を準備"""
+        # 辞書は「その他(記述)」の行だけ
         self.status_dict = {
             ('その他(記述)', '交換留学中'): '短期留学（日本の大学に在籍中）',
             ('その他(記述)', 'アメリカの大学に在学中'): '正規留学（学位取得中）',
-            ('その他(記述)', 'ワーホリ中'): '語学留学・ワーホリ・Co-op など(学位なし)',
-            ('その他(記述)', '留学予定なし'): '国内の学生(留学なし・検討中)',
+            ('その他(記述)', 'ワーホリ中'): '語学留学・ワーホリ・Co-op など（学位なし）',
+            ('その他(記述)', '留学予定なし'): '国内の学生（留学なし・検討中）',
             ('その他(記述)', '帰国子女'): '帰国子女・海外育ち',
-            ('その他(記述)', '無職'): 'NA',
         }
 
     def test_case_1_matched_selection(self):
         """テストケース1：選択肢が「その他」以外 → 選択肢をそのまま返す（NFKC正規化後の値）"""
         result = normalize_status('正規留学（学位取得中）', '', self.status_dict)
         self.assertEqual(result['status'], 'matched')
-        # normalize_text() により全角括弧が半角括弧に変換される
-        self.assertEqual(result['value'], '正規留学(学位取得中)')
+        # normalize_text() により全角括弧は全角括弧のままで、半角括弧は全角括弧に変換される
+        self.assertEqual(result['value'], '正規留学（学位取得中）')
 
     def test_case_2_selection_priority_over_description(self):
-        """テストケース2：既に社会人 + 記述「無職」 → 既に社会人（選択肢優先）"""
-        result = normalize_status('既に社会人', '無職', self.status_dict)
+        """テストケース2：既に社会人 + 記述「ワーホリ中」 → 既に社会人（選択肢優先）"""
+        result = normalize_status('既に社会人', 'ワーホリ中', self.status_dict)
         self.assertEqual(result['status'], 'matched')
         self.assertEqual(result['value'], '既に社会人')
 
@@ -45,8 +45,8 @@ class TestNormalizeStatus(unittest.TestCase):
         """テストケース5：その他 + ワーホリ中 → 語学留学・ワーホリ...（辞書マッチ）"""
         result = normalize_status('その他', 'ワーホリ中', self.status_dict)
         self.assertEqual(result['status'], 'matched')
-        # normalize_text() により全角括弧が半角括弧に変換される
-        self.assertEqual(result['value'], '語学留学・ワーホリ・Co-op など(学位なし)')
+        # 全角括弧で返される
+        self.assertEqual(result['value'], '語学留学・ワーホリ・Co-op など（学位なし）')
 
     def test_case_6_other_no_description(self):
         """テストケース6：その他 + 空欄 → NA（matched）"""
@@ -66,6 +66,17 @@ class TestNormalizeStatus(unittest.TestCase):
         result = normalize_status('', '記述', self.status_dict)
         self.assertEqual(result['status'], 'unmatched')
         self.assertEqual(result['value'], '')
+
+    def test_case_9_brackets_full_width(self):
+        """テストケース9：かっこの全角統一検証"""
+        # 選択肢の括弧は全角に統一される
+        result1 = normalize_status('短期留学（日本の大学に在籍中）', '', self.status_dict)
+        self.assertEqual(result1['value'], '短期留学（日本の大学に在籍中）')
+
+        # 辞書の値も全角括弧
+        result2 = normalize_status('その他', '交換留学中', self.status_dict)
+        self.assertIn('（', result2['value'])
+        self.assertNotIn('(', result2['value'])
 
 if __name__ == '__main__':
     unittest.main()

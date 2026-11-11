@@ -233,7 +233,7 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
             print(f"[WARN] 専攻対応表の読み込みエラー: {e}")
             major_matching_dict = {}
 
-        # Google Sheets からステータス対応表を読み込む
+        # Google Sheets からステータス対応表を読み込む（専攻と同じ方法）
         try:
             result = service.spreadsheets().values().get(
                 spreadsheetId=spreadsheet_id,
@@ -243,10 +243,11 @@ def load_dictionaries_from_sheets(spreadsheet_id, credentials_path=None):
 
             for row in values:
                 if len(row) >= 3:
-                    match_type = normalize_text(row[0])      # 「選択肢」or「その他(記述)」
-                    input_value = normalize_text(row[1])      # 入力値
-                    unified_status = normalize_text(row[2])   # 統一後のステータス
+                    match_type = normalize_text(row[0])       # 「選択肢」or「その他(記述)」
+                    input_value = normalize_text(row[1])       # 入力値
+                    unified_status = normalize_text(row[2])    # 統一後のステータス
 
+                    # 全ての値が存在する場合のみ登録（normalize_text() の結果が空でない）
                     if match_type and input_value and unified_status:
                         status_dict_key = (match_type, input_value)
                         dicts['status'][status_dict_key] = unified_status
@@ -308,6 +309,12 @@ def normalize_status(status_value, other_description, status_dict):
             'error': (オプション) エラーメッセージ
         }
     """
+    def to_full_width_brackets(text):
+        """半角括弧を全角括弧に変換"""
+        if text:
+            text = text.replace('(', '（').replace(')', '）')
+        return text
+
     status_value = normalize_text(status_value)
     other_description = normalize_text(other_description)
 
@@ -315,7 +322,7 @@ def normalize_status(status_value, other_description, status_dict):
     if status_value and status_value != 'その他':
         return {
             'status': 'matched',
-            'value': status_value
+            'value': to_full_width_brackets(status_value)
         }
 
     # b) status_value が「その他」で other_description が空欄 → NA（matched扱い）
@@ -327,19 +334,24 @@ def normalize_status(status_value, other_description, status_dict):
 
     # c) status_value が「その他」で other_description に値あり → 辞書で照合
     if status_value == 'その他' and other_description:
-        key = ('その他(記述)', other_description)
-        if key in status_dict:
-            return {
-                'status': 'matched',
-                'value': status_dict[key]
-            }
-        else:
-            # 辞書にない値 → 「その他」に降格、unmatched
-            return {
-                'status': 'unmatched',
-                'value': 'その他',
-                'error': '辞書にない値'
-            }
+        # 記述を照合用に正規化
+        normalized_description = normalize_for_matching(other_description)
+
+        # 辞書をループして照合（normalize_for_matching で比較）
+        for (match_type, dict_input), unified_value in status_dict.items():
+            if match_type == 'その他(記述)':
+                if normalize_for_matching(dict_input) == normalized_description:
+                    return {
+                        'status': 'matched',
+                        'value': to_full_width_brackets(unified_value)
+                    }
+
+        # 辞書にない値 → 「その他」に降格、unmatched
+        return {
+            'status': 'unmatched',
+            'value': 'その他',
+            'error': '辞書にない値'
+        }
 
     # d) status_value が空欄 → unmatched
     return {

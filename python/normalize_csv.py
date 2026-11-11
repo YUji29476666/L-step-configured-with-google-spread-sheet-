@@ -9,7 +9,7 @@ import os
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-from rulebook import load_dictionaries, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status
+from rulebook import load_dictionaries, normalize_text, normalize_country, normalize_school, normalize_major, country_code_to_name, normalize_graduation_month, normalize_graduation_year, normalize_status
 
 def read_csv(filepath, encoding='shift_jis'):
     """CSV ファイルを読み込む（複数エンコーディング対応）"""
@@ -134,8 +134,18 @@ def normalize_row(row, dicts):
     ])
 
     # 「その他(記述)」を取得（「7. 現在のステータス」が「その他」の場合に使用）
-    # raw の index 17 が「その他(記述)」に対応（国の「その他（国）」と同じ列）
-    other_description_raw = row.iloc[17] if len(row) > 17 else ''
+    # 「7. 現在のステータス」の列を見出しで探し、その次の列を使用
+    other_description_raw = ''
+    for col_name in row.index:
+        if '7. 現在のステータス' in col_name:
+            # この列の位置を取得
+            col_list = list(row.index)
+            col_idx = col_list.index(col_name)
+            # 次の列があれば、その値を取得
+            if col_idx + 1 < len(col_list):
+                next_val = row.iloc[col_idx + 1]
+                other_description_raw = next_val if pd.notna(next_val) and str(next_val).strip() else ''
+            break
 
     graduation_year = normalize_graduation_year(graduation_year_raw)
     graduation_month = normalize_graduation_month(graduation_month_raw)
@@ -149,6 +159,19 @@ def normalize_row(row, dicts):
     else:
         country_to_normalize = country_value_raw
 
+    # ステータス：「その他」以外は辞書を通さず、normalize_text だけ適用
+    if str(current_status_raw).strip() == 'その他':
+        status_result = normalize_status(str(current_status_raw), str(other_description_raw), dicts['status'])
+    else:
+        # 選択肢は辞書を通さず、normalize_text だけ適用（括弧は全角に統一）
+        normalized_value = normalize_text(str(current_status_raw))
+        # 半角括弧を全角括弧に統一
+        normalized_value = normalized_value.replace('(', '（').replace(')', '）')
+        status_result = {
+            'status': 'matched',
+            'value': normalized_value
+        }
+
     result = {
         'gender': gender_raw,
         'degree': degree_raw,
@@ -158,7 +181,7 @@ def normalize_row(row, dicts):
         'school_result': None,
         'major_result': None,
         'minor_major_result': None,
-        'status_result': normalize_status(str(current_status_raw), str(other_description_raw), dicts['status']),
+        'status_result': status_result,
         'status': None
     }
 
@@ -313,7 +336,7 @@ def process_csv(input_filepath, output_filepath=None):
                 '国_status': get_value(normalized['country_result'].get('status', '')),
                 '学校名_status': get_value(normalized['school_result'].get('status', '')),
                 '専攻_status': get_value(normalized['major_result'].get('status', '')),
-                'ステータス': get_value(normalized['status_result'].get('value', '')),
+                'ステータス': get_value(normalized['status_result'].get('value', '')).replace('(', '（').replace(')', '）'),
                 'ステータス_status': get_value(normalized['status_result'].get('status', '')),
                 'processing_status': get_value(normalized['status'])
             }
@@ -540,6 +563,11 @@ def main():
         action='store_true',
         help='Google Sheets から辞書を読み込む'
     )
+    parser.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='ドライラン: Sheets に書き込まずに処理結果を表示'
+    )
 
     args = parser.parse_args()
 
@@ -671,8 +699,57 @@ def main():
 
         print()
 
-        # Google Sheets に書き込む
-        write_to_spreadsheet(args.spreadsheet_id, args.cleaned_sheet, result_df, args.credentials)
+        # dry-run の場合：詳細な統計情報を表示
+        if args.dry_run:
+            print("=" * 80)
+            print("【DRY-RUN】統計情報（4項目）")
+            print("=" * 80)
+
+            # 項目1: ステータス列全体の件数
+            print("\n[1] ステータス列全体の件数")
+            if 'ステータス' in result_df.columns:
+                status_value_counts = result_df['ステータス'].value_counts()
+                total_status_count = len(result_df)
+                for status_val, count in status_value_counts.items():
+                    print(f"  {status_val}: {count}")
+                print(f"  合計: {total_status_count}")
+
+            # 項目2: ステータス_status の matched/unmatched 件数
+            print("\n[2] ステータス_status の件数")
+            if 'ステータス_status' in result_df.columns:
+                status_status_counts = result_df['ステータス_status'].value_counts()
+                for status_status, count in status_status_counts.items():
+                    print(f"  {status_status}: {count}")
+
+            # 項目3: unmatched の上位の値
+            print("\n[3] unmatched の上位の値（件数多い順）")
+            if 'ステータス_status' in result_df.columns and 'ステータス' in result_df.columns:
+                unmatched_rows = result_df[result_df['ステータス_status'] == 'unmatched']
+                if len(unmatched_rows) > 0:
+                    unmatched_values = unmatched_rows['ステータス'].value_counts()
+                    for val, count in unmatched_values.head(5).items():
+                        print(f"  {val}: {count}")
+                else:
+                    print("  （unmatched なし）")
+
+            # 項目4: processing_status の前後比較
+            print("\n[4] processing_status の前後比較")
+            print("  （現在の cleaned と dry-run 後の比較は別途確認が必要）")
+            if 'processing_status' in result_df.columns:
+                proc_status_counts = result_df['processing_status'].value_counts()
+                for proc_status, count in proc_status_counts.items():
+                    print(f"  {proc_status}: {count}")
+
+            print("\n" + "=" * 80)
+            print("[DRY-RUN] Sheets への書き込みをスキップします")
+            print("=" * 80)
+        else:
+            write_to_spreadsheet(args.spreadsheet_id, args.cleaned_sheet, result_df, args.credentials)
+
+        # 出力ファイルに書き込む（--output が指定されている場合）
+        if args.output:
+            result_df.to_csv(args.output, index=False, encoding='utf-8-sig', na_rep='')
+            print(f"[OK] 出力ファイルに書き込みました: {args.output}")
 
     elif args.input:
         # モード: ローカル CSV
