@@ -172,10 +172,20 @@ def normalize_row(row, dicts):
             'value': normalized_value
         }
 
+    # 「現在のステータス」の出力値を決定
+    # - 値がある場合（「その他」以外）→ その値を優先
+    # - 「その他」の場合 → 「その他(記述)」があれば記述を使う、なければ「その他」
+    if str(current_status_raw).strip() and str(current_status_raw).strip() != 'その他':
+        current_status_output = current_status_raw
+    elif str(current_status_raw).strip() == 'その他':
+        current_status_output = str(other_description_raw).strip() if other_description_raw else 'その他'
+    else:
+        current_status_output = current_status_raw
+
     result = {
         'gender': gender_raw,
         'degree': degree_raw,
-        'current_status': current_status_raw,
+        'current_status': current_status_output,
         'graduation_date': graduation_date,
         'country_result': normalize_country(str(country_to_normalize), dicts['country']),
         'school_result': None,
