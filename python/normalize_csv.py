@@ -173,14 +173,13 @@ def normalize_row(row, dicts):
         }
 
     # 「現在のステータス」の出力値を決定
-    # - 値がある場合（「その他」以外）→ その値を優先
-    # - 「その他」の場合 → 「その他(記述)」があれば記述を使う、なければ「その他」
+    # - 選択肢（「その他」以外）→ その値をそのまま
+    # - 「その他」 → 辞書で正規化した値を使う（status_result['value']）
     if str(current_status_raw).strip() and str(current_status_raw).strip() != 'その他':
         current_status_output = current_status_raw
-    elif str(current_status_raw).strip() == 'その他':
-        current_status_output = str(other_description_raw).strip() if other_description_raw else 'その他'
     else:
-        current_status_output = current_status_raw
+        # 「その他」の場合は、正規化後の値を使う
+        current_status_output = status_result.get('value', 'その他')
 
     result = {
         'gender': gender_raw,
